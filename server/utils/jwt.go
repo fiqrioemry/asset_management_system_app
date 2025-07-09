@@ -14,14 +14,12 @@ var refreshTokenSecret = []byte(os.Getenv("JWT_REFRESH_SECRET"))
 
 type Claims struct {
 	UserID string `json:"userId"`
-	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
-func GenerateAccessToken(userID, role string) (string, error) {
+func GenerateAccessToken(userID string) (string, error) {
 	claims := Claims{
 		UserID: userID,
-		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(60 * time.Minute)),
 		},
@@ -71,12 +69,12 @@ func DecodeRefreshToken(tokenStr string) (string, error) {
 
 func SetRefreshTokenCookie(c *gin.Context, refreshToken string) {
 	domain := os.Getenv("COOKIE_DOMAIN")
-	c.SetCookie("refreshToken", refreshToken, 7*24*3600, "/", domain, false, false)
+	c.SetCookie("refresh_token", refreshToken, 7*24*3600, "/", domain, false, false)
 }
 
 func ClearRefreshTokenCookie(c *gin.Context) {
 	c.SetCookie(
-		"refreshToken",
+		"refresh_token",
 		"",
 		-1,
 		"/",
@@ -88,12 +86,12 @@ func ClearRefreshTokenCookie(c *gin.Context) {
 
 func SetAccessTokenCookie(c *gin.Context, accessToken string) {
 	domain := os.Getenv("COOKIE_DOMAIN")
-	c.SetCookie("accessToken", accessToken, 3600, "/", domain, false, false)
+	c.SetCookie("access_token", accessToken, 3600, "/", domain, false, false)
 }
 
 func ClearAccessTokenCookie(c *gin.Context) {
 	c.SetCookie(
-		"accessToken",
+		"access_token",
 		"",
 		-1,
 		"/",
