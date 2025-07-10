@@ -2,7 +2,7 @@ package config
 
 import (
 	"context"
-	"os"
+	"fmt"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -12,8 +12,10 @@ var Ctx = context.Background()
 
 func InitRedis() {
 	RedisClient = redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDR"),
-		Password: os.Getenv("REDIS_PASSWORD"),
+		Addr:     AppConfig.RedisAddress,
+		Password: AppConfig.RedisPassword,
 		DB:       0,
 	})
+
+	fmt.Println("✅ Redis is connected ")
 }

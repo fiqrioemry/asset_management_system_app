@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/cloudinary/cloudinary-go/v2"
 )
@@ -11,16 +10,15 @@ import (
 var Cloud *cloudinary.Cloudinary
 
 func InitCloudinary() {
-
-	apiKey := os.Getenv("CLOUDINARY_API_KEY")
-	apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
-	cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
-
-	cloud, err := cloudinary.NewFromParams(cloudName, apiKey, apiSecret)
+	cloud, err := cloudinary.NewFromParams(
+		AppConfig.CloudName,
+		AppConfig.CloudApiKey,
+		AppConfig.CloudSecret,
+	)
 	if err != nil {
 		log.Fatalf("Failed to initialize Cloudinary: %v", err)
 	}
 
 	Cloud = cloud
-	fmt.Println("Cloudinary configured!")
+	fmt.Println("✅ Cloudinary configured")
 }

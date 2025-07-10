@@ -1,8 +1,7 @@
 package config
 
 import (
-	"log"
-	"os"
+	"fmt"
 
 	gomail "gopkg.in/gomail.v2"
 )
@@ -10,11 +9,8 @@ import (
 var MailDialer *gomail.Dialer
 
 func InitMailer() {
-	email := os.Getenv("USER_EMAIL")
-	password := os.Getenv("USER_PASSWORD")
-
-	port := 587
-	MailDialer = gomail.NewDialer("smtp.gmail.com", port, email, password)
+	MailDialer = gomail.NewDialer(AppConfig.SMTPHost, AppConfig.SMTPPort, AppConfig.SMTPEmail, AppConfig.SMTPPassword)
 	MailDialer.TLSConfig = nil
-	log.Println("Mailer configured")
+
+	fmt.Println("✅ Mailer configured")
 }

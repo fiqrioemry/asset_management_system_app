@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/models"
@@ -14,25 +13,22 @@ import (
 var DB *gorm.DB
 
 func InitDatabase() {
-	dbRootURL := os.Getenv("DB_ROOT_URL")
-	dbURL := os.Getenv("DB_URL")
-	dbName := os.Getenv("DB_NAME")
 
 	// Connect to MySQL server
-	dbRoot, err := gorm.Open(mysql.Open(dbRootURL), &gorm.Config{})
+	dbRoot, err := gorm.Open(mysql.Open(AppConfig.DatabaseRootURL), &gorm.Config{})
 	if err != nil {
 		panic("Failed to connect to MySQL server: " + err.Error())
 	}
 
 	// Create DB if not exists
-	sql := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbName)
+	sql := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", AppConfig.DatabaseName)
 	if err := dbRoot.Exec(sql).Error; err != nil {
 		panic("Failed to create database: " + err.Error())
 	}
 
-	// Connect ke database utama
+	// Connect to main DB
 	for range 10 {
-		DB, err = gorm.Open(mysql.Open(dbURL), &gorm.Config{})
+		DB, err = gorm.Open(mysql.Open(AppConfig.DatabaseURL), &gorm.Config{})
 		if err == nil {
 			break
 		}
@@ -43,7 +39,7 @@ func InitDatabase() {
 		panic("Failed to connect to database: " + err.Error())
 	}
 
-	// Migration
+	// RunMigration
 	if err := DB.AutoMigrate(
 		&models.User{},
 		&models.Asset{},
@@ -61,5 +57,5 @@ func InitDatabase() {
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	fmt.Println("Database connection established successfully.")
+	fmt.Println("✅ Database connection established")
 }
