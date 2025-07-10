@@ -1,4 +1,4 @@
-package middleware
+package middlewares
 
 import (
 	"fmt"
@@ -7,46 +7,62 @@ import (
 	"time"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/config"
-
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	RateLimitKeyPrefix = "rl:"
-	RateLimitDuration  = time.Minute
-	RateLimitMaxReq    = 5
-)
+func RateLimiterInit() gin.HandlerFunc {
+	return RateLimiter(config.AppConfig.RateLimitAttempts, config.AppConfig.RateLimitDuration)
+}
 
-func RateLimiter() gin.HandlerFunc {
+func RateLimiter(maxAttempts int, duration time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ip := getClientIP(c)
-		key := fmt.Sprintf("%s%s", RateLimitKeyPrefix, ip)
+		ip := GetClientIP(c)
+		key := fmt.Sprintf("ratelimit:%s", ip)
 
-		count, err := config.RedisClient.Get(config.Ctx, key).Int()
-		if err != nil && err.Error() != "redis: nil" {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Rate limiter error"})
+		count, _ := config.RedisClient.Get(config.Ctx, key).Int()
+
+		if count >= maxAttempts {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":       "Too many requests",
+				"message":     "Rate limit exceeded. Please try again later.",
+				"retry_after": int(duration.Seconds()),
+			})
+			c.Abort()
 			return
 		}
 
-		if count >= RateLimitMaxReq {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests"})
-			return
-		}
-
+		// Increment counter with expiration
 		pipe := config.RedisClient.TxPipeline()
 		pipe.Incr(config.Ctx, key)
-		pipe.Expire(config.Ctx, key, RateLimitDuration)
+		pipe.Expire(config.Ctx, key, duration)
 		_, _ = pipe.Exec(config.Ctx)
+
+		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", maxAttempts))
+		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", maxAttempts-count-1))
+		c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(duration).Unix()))
 
 		c.Next()
 	}
 }
 
-// getClientIP extracts IP from request
-func getClientIP(c *gin.Context) string {
-	ip := c.ClientIP()
-	if ip == "" {
-		ip = "unknown"
+func LimitFileSize(maxSize int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSize)
+		c.Next()
 	}
-	return strings.TrimSpace(ip)
+}
+
+func GetClientIP(c *gin.Context) string {
+	if forwarded := c.Request.Header.Get("X-Forwarded-For"); forwarded != "" {
+		ips := strings.Split(forwarded, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	if realIP := c.Request.Header.Get("X-Real-IP"); realIP != "" {
+		return strings.TrimSpace(realIP)
+	}
+
+	return c.ClientIP()
 }
