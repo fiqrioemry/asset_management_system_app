@@ -138,7 +138,7 @@ func (s *locationService) UpdateLocation(userID, locationID string, req *dto.Upd
 	req.Name = strings.Title(strings.ToLower(req.Name))
 
 	// Check if new name already exists (excluding current location)
-	if strings.ToLower(req.Name) != strings.ToLower(location.Name) {
+	if !strings.EqualFold(req.Name, location.Name) {
 		exists, err := s.locationRepo.CheckNameExists(req.Name, userID)
 		if err != nil {
 			return nil, errors.NewInternalServerError("Failed to check location name", err)

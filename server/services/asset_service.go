@@ -1,7 +1,6 @@
 package services
 
 import (
-	"math"
 	"strings"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
@@ -14,11 +13,11 @@ import (
 )
 
 type AssetService interface {
-	GetAssets(userID string, req *dto.GetAssetsRequest) (*dto.AssetsListResponse, error)
+	DeleteAsset(userID, assetID string) error
 	GetAssetByID(userID, assetID string) (*dto.AssetResponse, error)
 	CreateAsset(userID string, req *dto.CreateAssetRequest) (*dto.AssetResponse, error)
 	UpdateAsset(userID, assetID string, req *dto.UpdateAssetRequest) (*dto.AssetResponse, error)
-	DeleteAsset(userID, assetID string) error
+	GetAssets(userID string, req *dto.GetAssetsRequest) (*[]dto.AssetResponse, *utils.Pagination, error)
 }
 
 type assetService struct {
@@ -39,14 +38,7 @@ func NewAssetService(
 	}
 }
 
-func (s *assetService) GetAssets(userID string, req *dto.GetAssetsRequest) (*dto.AssetsListResponse, error) {
-	// Set default values
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.Limit == 0 {
-		req.Limit = 10
-	}
+func (s *assetService) GetAssets(userID string, req *dto.GetAssetsRequest) (*[]dto.AssetResponse, *utils.Pagination, error) {
 	if req.SortBy == "" {
 		req.SortBy = "created_at"
 	}
@@ -54,9 +46,9 @@ func (s *assetService) GetAssets(userID string, req *dto.GetAssetsRequest) (*dto
 		req.SortOrder = "desc"
 	}
 
-	// Validate price range
+	// validate price range
 	if req.MinPrice != nil && req.MaxPrice != nil && *req.MinPrice > *req.MaxPrice {
-		return nil, errors.NewBadRequest("Min price cannot be greater than max price")
+		return nil, nil, errors.NewBadRequest("Min price cannot be greater than max price")
 	}
 
 	filter := repositories.AssetFilter{
@@ -73,31 +65,21 @@ func (s *assetService) GetAssets(userID string, req *dto.GetAssetsRequest) (*dto
 		Limit:      req.Limit,
 	}
 
-	// Get assets and total count
+	// get assets and total count
 	assets, totalCount, err := s.assetRepo.GetAssetsWithFilter(filter)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get assets", err)
+		return nil, nil, errors.NewInternalServerError("Failed to get assets", err)
 	}
 
-	// Convert to response format
+	// convert assert to response
 	var assetResponses []dto.AssetResponse
 	for _, asset := range assets {
 		assetResponses = append(assetResponses, s.convertToResponse(&asset))
 	}
 
-	// Calculate pagination
-	totalPages := int(math.Ceil(float64(totalCount) / float64(req.Limit)))
-	pagination := dto.PaginationResponse{
-		CurrentPage: req.Page,
-		TotalItems:  totalCount,
-		TotalPages:  totalPages,
-		Limit:       req.Limit,
-	}
+	pagination := utils.BuildPagination(req.Page, req.Limit, totalCount)
 
-	return &dto.AssetsListResponse{
-		Assets:     assetResponses,
-		Pagination: pagination,
-	}, nil
+	return &assetResponses, pagination, nil
 }
 
 func (s *assetService) GetAssetByID(userID, assetID string) (*dto.AssetResponse, error) {

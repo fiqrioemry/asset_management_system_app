@@ -68,13 +68,13 @@ func (s *userService) Login(req *dto.LoginRequest) (*dto.AuthResponse, error) {
 	// delete attempts cache
 	utils.DeleteKeys(redisKey)
 
-	// generate access_token
+	// generate accessToken
 	accessToken, err := utils.GenerateAccessToken(user.ID.String())
 	if err != nil {
 		return nil, errors.NewInternalServerError("Failed to generate access token", err)
 	}
 
-	// generate refresh_token
+	// generate refreshToken
 	refreshToken, err := utils.GenerateRefreshToken(user.ID.String())
 	if err != nil {
 		return nil, errors.NewInternalServerError("Failed to generate refresh token", err)
@@ -103,7 +103,7 @@ func (s *userService) Register(req *dto.RegisterRequest) (*dto.AuthResponse, err
 	}
 
 	if user != nil {
-		return nil, errors.NewAlreadyExists("Email already registered")
+		return nil, errors.NewConflict("Email already registered")
 	}
 
 	// hash password
@@ -131,12 +131,12 @@ func (s *userService) Register(req *dto.RegisterRequest) (*dto.AuthResponse, err
 		Avatar:   newUser.Avatar,
 	}
 
-	// generate access_token
+	// generate accessToken
 	accessToken, err := utils.GenerateAccessToken(newUser.ID.String())
 	if err != nil {
 		return nil, errors.NewInternalServerError("Failed to generate access token", err)
 	}
-	// generate refresh_token
+	// generate refreshToken
 	refreshToken, err := utils.GenerateRefreshToken(newUser.ID.String())
 	if err != nil {
 		return nil, errors.NewInternalServerError("Failed to generate refresh token", err)
@@ -151,7 +151,7 @@ func (s *userService) Register(req *dto.RegisterRequest) (*dto.AuthResponse, err
 }
 
 func (s *userService) RefreshSession(c *gin.Context, token string) (*dto.UserSession, error) {
-	// decode refresh_token
+	// decode refreshToken
 	userID, err := utils.DecodeRefreshToken(token)
 	if err != nil {
 		return nil, errors.NewUnauthorized("Invalid refresh token")
@@ -170,13 +170,13 @@ func (s *userService) RefreshSession(c *gin.Context, token string) (*dto.UserSes
 		Avatar:   user.Avatar,
 	}
 
-	// generate access_token
+	// generate accessToken
 	accessToken, err := utils.GenerateAccessToken(user.ID.String())
 	if err != nil {
 		return nil, errors.NewInternalServerError("Failed to generate access token", err)
 	}
 
-	// set access_token
+	// set accessToken
 	utils.SetAccessTokenCookie(c, accessToken)
 
 	return &userResponse, nil
@@ -187,7 +187,7 @@ func (s *userService) GetMe(id string) (*dto.UserProfileResponse, error) {
 	// check user exists
 	user, err := s.user.GetByID(id)
 	if err != nil || user == nil {
-		return nil, errors.NewNotFound("User not found").WithContext("userID", id)
+		return nil, errors.NewNotFound("User not found")
 	}
 
 	return &dto.UserProfileResponse{
@@ -203,7 +203,7 @@ func (s *userService) UpdateMe(id string, req *dto.UpdateUserRequest) (*dto.User
 	// check user exists
 	user, err := s.user.GetByID(id)
 	if err != nil || user == nil {
-		return nil, errors.NewNotFound("User not found").WithContext("userID", id)
+		return nil, errors.NewNotFound("User not found")
 	}
 
 	if req.Fullname != "" {
@@ -293,10 +293,10 @@ func (s *userService) ForgotPassword(c *gin.Context, req *dto.ForgotPasswordRequ
 
 	// Prepare token data
 	tokenData := map[string]any{
-		"user_id":    user.ID.String(),
-		"email":      user.Email,
-		"created_at": time.Now().Unix(),
-		"expires_at": time.Now().Add(1 * time.Hour).Unix(),
+		"userId":    user.ID.String(),
+		"email":     user.Email,
+		"createdAt": time.Now().Unix(),
+		"expiresAt": time.Now().Add(1 * time.Hour).Unix(),
 	}
 
 	// Store reset token data
@@ -351,7 +351,7 @@ func (s *userService) ResetPassword(req *dto.ResetPasswordRequest) error {
 		return errors.NewBadRequest("Invalid reset token data")
 	}
 
-	userID, ok := tokenData["user_id"].(string)
+	userID, ok := tokenData["userId"].(string)
 	if !ok {
 		return errors.NewBadRequest("Invalid reset token data")
 	}
@@ -359,7 +359,7 @@ func (s *userService) ResetPassword(req *dto.ResetPasswordRequest) error {
 	// check user exists
 	user, err := s.user.GetByID(userID)
 	if err != nil {
-		return errors.NewNotFound("User not found").WithContext("userID", userID)
+		return errors.NewNotFound("User not found")
 	}
 
 	// hash new password
@@ -393,7 +393,7 @@ func (s *userService) ValidateToken(token string) (string, error) {
 	}
 
 	// Check token age
-	createdAt, ok := tokenData["created_at"].(float64)
+	createdAt, ok := tokenData["createdAt"].(float64)
 	if !ok {
 		return "", errors.NewBadRequest("Invalid token data")
 	}
@@ -414,12 +414,12 @@ func (s *userService) ValidateToken(token string) (string, error) {
 func (s *userService) GoogleSignIn(tokenId string) (*dto.AuthResponse, error) {
 	payload, err := idtoken.Validate(context.Background(), tokenId, config.AppConfig.GoogleClientID)
 	if err != nil {
-		return nil, errors.NewUnauthorized("Invalid Google ID token").WithContext("error", err)
+		return nil, errors.NewUnauthorized("Invalid Google ID token")
 	}
 
 	email, ok := payload.Claims["email"].(string)
 	if !ok || email == "" {
-		return nil, errors.NewNotFound("Email not found in token").WithContext("payload", payload)
+		return nil, errors.NewNotFound("Email not found in token")
 	}
 
 	name, _ := payload.Claims["name"].(string)
@@ -430,7 +430,6 @@ func (s *userService) GoogleSignIn(tokenId string) (*dto.AuthResponse, error) {
 			Email:    email,
 			Avatar:   utils.RandomUserAvatar(name),
 			Fullname: name,
-			// Password is not used for OAuth users, set to a placeholder
 			Password: "-",
 		}
 
@@ -466,7 +465,7 @@ func (s *userService) GetGoogleOAuthURL() string {
 func (s *userService) HandleGoogleOAuthCallback(code string) (*dto.AuthResponse, error) {
 	token, err := config.GoogleOAuthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		return nil, errors.NewUnauthorized("Failed to exchange Google OAuth code").WithContext("error", err)
+		return nil, errors.NewUnauthorized("Failed to exchange Google OAuth code")
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
