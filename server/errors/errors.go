@@ -1,3 +1,4 @@
+// ==================== errors/errors.go ====================
 package errors
 
 import (
@@ -6,27 +7,24 @@ import (
 	"net/http"
 )
 
-// ErrorCode represents error codes for categorization
 type ErrorCode string
 
 const (
-	// Client errors
-	ErrCodeInvalidInput   ErrorCode = "INVALID_INPUT"
-	ErrCodeUnauthorized   ErrorCode = "UNAUTHORIZED"
-	ErrCodeForbidden      ErrorCode = "FORBIDDEN"
-	ErrCodeNotFound       ErrorCode = "NOT_FOUND"
-	ErrCodeAlreadyExists  ErrorCode = "ALREADY_EXISTS"
-	ErrCodeConflict       ErrorCode = "CONFLICT"
-	ErrCodeTooManyRequest ErrorCode = "TOO_MANY_REQUESTS"
+	// Client errors (4xx)
+	ErrCodeInvalidInput    ErrorCode = "INVALID_INPUT"     // 400
+	ErrCodeUnauthorized    ErrorCode = "UNAUTHORIZED"      // 401
+	ErrCodeForbidden       ErrorCode = "FORBIDDEN"         // 403
+	ErrCodeNotFound        ErrorCode = "NOT_FOUND"         // 404
+	ErrCodeConflict        ErrorCode = "CONFLICT"          // 409
+	ErrCodeRequestTooLarge ErrorCode = "REQUEST_TOO_LARGE" // 413
+	ErrCodeTooManyRequest  ErrorCode = "TOO_MANY_REQUESTS" // 429
 
-	// Server errors
+	// Server errors (5xx)
 	ErrCodeInternalServer  ErrorCode = "INTERNAL_SERVER_ERROR"
 	ErrCodeDatabaseError   ErrorCode = "DATABASE_ERROR"
 	ErrCodeExternalService ErrorCode = "EXTERNAL_SERVICE_ERROR"
-	ErrCodeTokenGeneration ErrorCode = "TOKEN_GENERATION_ERROR"
 )
 
-// AppError represents application-specific error with structured information
 type AppError struct {
 	Code       ErrorCode      `json:"code"`
 	Message    string         `json:"message"`
@@ -42,12 +40,10 @@ func (e *AppError) Error() string {
 	return e.Message
 }
 
-// Unwrap returns the underlying error
 func (e *AppError) Unwrap() error {
 	return e.Err
 }
 
-// WithContext adds context information to the error
 func (e *AppError) WithContext(key string, value any) *AppError {
 	if e.Context == nil {
 		e.Context = make(map[string]any)
@@ -56,12 +52,14 @@ func (e *AppError) WithContext(key string, value any) *AppError {
 	return e
 }
 
-// IsType checks if error is of specific type
-func (e *AppError) IsType(code ErrorCode) bool {
-	return e.Code == code
+func NewTooManyRequests(message string) *AppError {
+	return &AppError{
+		Code:       ErrCodeTooManyRequest,
+		Message:    message,
+		HTTPStatus: http.StatusTooManyRequests,
+	}
 }
 
-// Client error constructors
 func NewBadRequest(message string) *AppError {
 	return &AppError{
 		Code:       ErrCodeInvalidInput,
@@ -102,23 +100,6 @@ func NewConflict(message string) *AppError {
 	}
 }
 
-func NewAlreadyExists(message string) *AppError {
-	return &AppError{
-		Code:       ErrCodeAlreadyExists,
-		Message:    message,
-		HTTPStatus: http.StatusConflict,
-	}
-}
-
-func NewTooManyRequests(message string) *AppError {
-	return &AppError{
-		Code:       ErrCodeTooManyRequest,
-		Message:    message,
-		HTTPStatus: http.StatusTooManyRequests,
-	}
-}
-
-// Server error constructors
 func NewInternalServerError(message string, err error) *AppError {
 	return &AppError{
 		Code:       ErrCodeInternalServer,
@@ -128,25 +109,6 @@ func NewInternalServerError(message string, err error) *AppError {
 	}
 }
 
-func NewDatabaseError(message string, err error) *AppError {
-	return &AppError{
-		Code:       ErrCodeDatabaseError,
-		Message:    message,
-		HTTPStatus: http.StatusInternalServerError,
-		Err:        err,
-	}
-}
-
-func NewExternalServiceError(message string, err error) *AppError {
-	return &AppError{
-		Code:       ErrCodeExternalService,
-		Message:    message,
-		HTTPStatus: http.StatusInternalServerError,
-		Err:        err,
-	}
-}
-
-// Utility functions
 func IsAppError(err error) (*AppError, bool) {
 	var appErr *AppError
 	if errors.As(err, &appErr) {
@@ -155,11 +117,12 @@ func IsAppError(err error) (*AppError, bool) {
 	return nil, false
 }
 
-func IsClientError(err error) bool {
-	if appErr, ok := IsAppError(err); ok {
-		return appErr.HTTPStatus >= 400 && appErr.HTTPStatus < 500
+func NewRequestTooLarge(message string) *AppError {
+	return &AppError{
+		Code:       ErrCodeRequestTooLarge,
+		Message:    message,
+		HTTPStatus: http.StatusRequestEntityTooLarge,
 	}
-	return false
 }
 
 func IsServerError(err error) bool {
