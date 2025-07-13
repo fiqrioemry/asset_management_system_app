@@ -2,8 +2,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
 	"github.com/fiqrioemry/asset_management_system_app/server/services"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
@@ -22,17 +20,13 @@ func NewLocationHandler(service services.LocationService) *LocationHandler {
 func (h *LocationHandler) GetLocations(c *gin.Context) {
 	userID := utils.MustGetUserID(c)
 
-	locations, err := h.service.GetLocations(userID)
+	response, err := h.service.GetLocations(userID)
 	if err != nil {
 		utils.HandleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    locations,
-		"message": "Locations retrieved successfully",
-	})
+	utils.OK(c, "Locations retrieved successfully", response.Locations)
 }
 
 // CreateLocation creates a new user location
@@ -50,11 +44,7 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    location,
-		"message": "Location created successfully",
-	})
+	utils.Created(c, "Location created successfully", location)
 }
 
 // UpdateLocation updates user's own location
@@ -73,11 +63,8 @@ func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    location,
-		"message": "Location updated successfully",
-	})
+	utils.OK(c, "Location updated successfully", location)
+
 }
 
 // DeleteLocation deletes user's own location (not system defaults)
@@ -90,10 +77,7 @@ func (h *LocationHandler) DeleteLocation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Location deleted successfully",
-	})
+	utils.OK(c, "Location deleted successfully", locationID)
 }
 
 // GetLocationByID gets specific location details
@@ -107,11 +91,7 @@ func (h *LocationHandler) GetLocationByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    location,
-		"message": "Location retrieved successfully",
-	})
+	utils.OK(c, "Location retrieved successfully", location)
 }
 
 // GetAssetsByLocation gets all assets in a specific location
@@ -125,9 +105,5 @@ func (h *LocationHandler) GetAssetsByLocation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    result,
-		"message": "Location assets retrieved successfully",
-	})
+	utils.OK(c, "Assets in location retrieved successfully", result)
 }

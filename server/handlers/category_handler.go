@@ -31,7 +31,7 @@ func (h *CategoryHandler) GetCategoriesTree(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data":    categories,
+		"data":    categories.Categories,
 		"message": "Categories tree retrieved successfully",
 	})
 }
@@ -46,11 +46,7 @@ func (h *CategoryHandler) GetCategoriesFlat(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    categories,
-		"message": "Categories flat list retrieved successfully",
-	})
+	utils.OK(c, "Categories flat list retrieved successfully", categories.Categories)
 }
 
 // GetParentCategories returns only parent categories
@@ -63,11 +59,7 @@ func (h *CategoryHandler) GetParentCategories(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    categories,
-		"message": "Parent categories retrieved successfully",
-	})
+	utils.OK(c, "Parent categories retrieved successfully", categories.Categories)
 }
 
 // GetChildCategories returns children of specific parent
@@ -81,11 +73,8 @@ func (h *CategoryHandler) GetChildCategories(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    categories,
-		"message": "Child categories retrieved successfully",
-	})
+	utils.OK(c, "Child categories retrieved successfully", categories.Categories)
+
 }
 
 // GetCategoryByID gets specific category details
@@ -99,11 +88,7 @@ func (h *CategoryHandler) GetCategoryByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    category,
-		"message": "Category retrieved successfully",
-	})
+	utils.OK(c, "Category retrieved successfully", category)
 }
 
 // GetAssetsByCategory gets all assets in specific category
@@ -117,11 +102,7 @@ func (h *CategoryHandler) GetAssetsByCategory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    result,
-		"message": "Category assets retrieved successfully",
-	})
+	utils.OK(c, "Assets in category retrieved successfully", result)
 }
 
 // CreateCategory creates new category (parent or child)
@@ -139,11 +120,7 @@ func (h *CategoryHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    category,
-		"message": "Category created successfully",
-	})
+	utils.Created(c, "Category created successfully", category)
 }
 
 // UpdateCategory updates user's own category
@@ -162,25 +139,18 @@ func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    category,
-		"message": "Category updated successfully",
-	})
+	utils.OK(c, "Category updated successfully", category)
 }
 
 // DeleteCategory deletes user's own category
 func (h *CategoryHandler) DeleteCategory(c *gin.Context) {
-	userID := utils.MustGetUserID(c)
 	categoryID := c.Param("id")
+	userID := utils.MustGetUserID(c)
 
 	if err := h.service.DeleteCategory(userID, categoryID); err != nil {
 		utils.HandleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Category deleted successfully",
-	})
+	utils.OK(c, "Category deleted successfully", categoryID)
 }

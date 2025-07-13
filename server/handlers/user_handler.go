@@ -5,6 +5,7 @@ import (
 
 	"github.com/fiqrioemry/asset_management_system_app/server/config"
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
+	"github.com/fiqrioemry/asset_management_system_app/server/errors"
 	"github.com/fiqrioemry/asset_management_system_app/server/services"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
 	"github.com/gin-gonic/gin"
@@ -35,11 +36,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	utils.SetRefreshTokenCookie(c, response.RefreshToken)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"user":    response.User,
-		"message": "Login successful",
-	})
+	utils.OK(c, "Asset retrieved successfully", response.User)
 }
 
 func (h *UserHandler) Register(c *gin.Context) {
@@ -58,11 +55,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 	utils.SetRefreshTokenCookie(c, response.RefreshToken)
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"user":    response.User,
-		"message": "Registration successful",
-	})
+	utils.Created(c, "Registration successful", response.User)
 
 }
 
@@ -70,14 +63,11 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	utils.ClearAccessTokenCookie(c)
 	utils.ClearRefreshTokenCookie(c)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Logout successful",
-	})
+	utils.OK(c, "Logout successful", nil)
 }
 
 func (h *UserHandler) RefreshSession(c *gin.Context) {
-	refreshToken, err := c.Cookie("refresh_token")
+	refreshToken, err := c.Cookie("refreshToken")
 
 	if err != nil {
 		utils.HandleError(c, err)
@@ -90,11 +80,7 @@ func (h *UserHandler) RefreshSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"user":    user,
-		"message": "Session refreshed successfully",
-	})
+	utils.OK(c, "Session refreshed successfully", user)
 }
 
 func (h *UserHandler) GetMe(c *gin.Context) {
@@ -106,11 +92,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"user":    user,
-		"message": "User retrieved successfully",
-	})
+	utils.OK(c, "User retrieved successfully", user)
 }
 
 func (h *UserHandler) UpdateMe(c *gin.Context) {
@@ -137,11 +119,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"user":    updatedUser,
-		"message": "User updated successfully",
-	})
+	utils.OK(c, "User updated successfully", updatedUser)
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {
@@ -157,14 +135,12 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Password changed successfully",
-	})
+	utils.OK(c, "Password changed successfully", nil)
 }
 
 // step 1 : User requests password reset
 func (h *UserHandler) ForgotPassword(c *gin.Context) {
+
 	var req dto.ForgotPasswordRequest
 	if !utils.BindAndValidateJSON(c, &req) {
 		return
@@ -175,10 +151,8 @@ func (h *UserHandler) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "If an account with that email exists, we have sent a password reset link.",
-	})
+	utils.OK(c, "Password reset link sent successfully", nil)
+
 }
 
 // step 2 : validate reset token and reset password
@@ -191,11 +165,7 @@ func (h *UserHandler) ValidateResetToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"email":   email,
-		"message": "Reset token is valid",
-	})
+	utils.OK(c, "Reset token is valid", email)
 }
 
 // step 3 : reset password
@@ -210,10 +180,7 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Password has been reset successfully",
-	})
+	utils.OK(c, "Password has been reset successfully", nil)
 }
 
 func (h *UserHandler) GoogleOAuthRedirect(c *gin.Context) {
@@ -224,7 +191,7 @@ func (h *UserHandler) GoogleOAuthRedirect(c *gin.Context) {
 func (h *UserHandler) GoogleOAuthCallback(c *gin.Context) {
 	code := c.Query("code")
 	if code == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Authorization code is missing"})
+		utils.HandleError(c, errors.NewBadRequest("Authorization code is missing"))
 		return
 	}
 
