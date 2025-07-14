@@ -72,7 +72,6 @@ func (s *locationService) GetLocations(userID string) (*dto.LocationsResponse, e
 	return response, nil
 }
 
-// CreateLocation creates a new user location
 func (s *locationService) CreateLocation(userID string, req *dto.CreateLocationRequest) (*dto.LocationResponse, error) {
 	// Normalize name
 	req.Name = strings.TrimSpace(req.Name)
@@ -119,7 +118,6 @@ func (s *locationService) CreateLocation(userID string, req *dto.CreateLocationR
 	return resp, nil
 }
 
-// UpdateLocation updates user's own location only
 func (s *locationService) UpdateLocation(userID, locationID string, req *dto.UpdateLocationRequest) (*dto.LocationResponse, error) {
 	// Get location and check ownership (only user's own locations can be updated)
 	location, err := s.locationRepo.GetByIDAndUserID(locationID, userID)
@@ -200,13 +198,13 @@ func (s *locationService) DeleteLocation(userID, locationID string) error {
 	}
 
 	// Invalidate cache
-	s.invalidateUserCache(userID)
+	go s.invalidateUserCache(userID)
 
 	return nil
 }
 
 func (s *locationService) GetLocationByID(userID, locationID string) (*dto.LocationResponse, error) {
-	// Get location
+	// Get location by ID
 	location, err := s.locationRepo.GetByID(locationID)
 	if err != nil {
 		return nil, response.NewInternalServerError("Failed to get location", err)
@@ -269,7 +267,6 @@ func (s *locationService) GetAssetsByLocation(userID, locationID string) (*dto.L
 	return response, nil
 }
 
-// Helper function to invalidate user cache
 func (s *locationService) invalidateUserCache(userID string) {
 	cacheKey := fmt.Sprintf("asset_app:cache:locations:all:%s", userID)
 	utils.DeleteKeys(cacheKey)
