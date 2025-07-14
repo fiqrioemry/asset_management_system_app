@@ -35,11 +35,12 @@ func InitDatabase() {
 		fmt.Println("Waiting for database to be ready...")
 		time.Sleep(3 * time.Second)
 	}
+
 	if err != nil {
 		panic("Failed to connect to database: " + err.Error())
 	}
 
-	// RunMigration
+	// run migrations
 	if err := DB.AutoMigrate(
 		&models.User{},
 		&models.Asset{},
@@ -53,9 +54,10 @@ func InitDatabase() {
 	if err != nil {
 		panic("Failed to get database connection: " + err.Error())
 	}
+	// Set connection pool settings
 	sqlDB.SetMaxOpenConns(10)
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	fmt.Println("✅ Database connection established")
+	fmt.Println("✅ Database configured")
 }

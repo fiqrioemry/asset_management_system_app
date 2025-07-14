@@ -138,10 +138,10 @@ func (r *assetRepository) GetAssetsWithFilter(filter AssetFilter) ([]models.Asse
 
 func (r *assetRepository) buildOrderBy(sortBy, sortOrder string) string {
 	validSortBy := map[string]string{
-		"name":          "name",
-		"price":         "price",
-		"created_at":    "created_at",
-		"purchase_date": "purchase_date",
+		"name":         "name",
+		"price":        "price",
+		"createdAt":    "created_at",
+		"purchaseDate": "purchase_date",
 	}
 
 	validSortOrder := map[string]string{

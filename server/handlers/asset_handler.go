@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
-	"github.com/fiqrioemry/asset_management_system_app/server/errors"
 	"github.com/fiqrioemry/asset_management_system_app/server/services"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
+
+	"github.com/fiqrioemry/go-api-toolkit/pagination"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,51 +19,6 @@ func NewAssetHandler(service services.AssetService) *AssetHandler {
 	return &AssetHandler{service}
 }
 
-func (h *AssetHandler) GetAssets(c *gin.Context) {
-	userID := utils.MustGetUserID(c)
-	var req dto.GetAssetsRequest
-
-	if err := c.ShouldBindQuery(&req); err != nil {
-		utils.HandleError(c, errors.NewBadRequest("Invalid query parameters"))
-		return
-	}
-
-	if req.Page == 0 {
-		req.Page = 1
-	}
-	if req.Limit == 0 {
-		req.Limit = 10
-	}
-
-	if req.SortBy == "" {
-		req.SortBy = "created_at"
-	}
-	if req.SortOrder == "" {
-		req.SortOrder = "desc"
-	}
-
-	assets, pagination, err := h.service.GetAssets(userID, &req)
-	if err != nil {
-		utils.HandleError(c, err)
-		return
-	}
-
-	utils.OKWithPagination(c, "Assets retrieved successfully", assets, pagination)
-}
-
-func (h *AssetHandler) GetAssetByID(c *gin.Context) {
-	userID := utils.MustGetUserID(c)
-	assetID := c.Param("id")
-
-	asset, err := h.service.GetAssetByID(userID, assetID)
-	if err != nil {
-		utils.HandleError(c, err)
-		return
-	}
-
-	utils.OK(c, "Asset retrieved successfully", asset)
-}
-
 func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	userID := utils.MustGetUserID(c)
 
@@ -71,10 +28,10 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	}
 
 	// Handle image upload
-	if req.Image != nil {
+	if req.Image != nil && req.Image.Filename != "" {
 		imageURL, err := utils.UploadImageWithValidation(req.Image)
 		if err != nil {
-			utils.HandleError(c, err)
+			response.Error(c, err)
 			return
 		}
 		req.ImageURL = imageURL
@@ -83,11 +40,50 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	asset, err := h.service.CreateAsset(userID, &req)
 	if err != nil {
 		utils.CleanupImageOnError(req.ImageURL)
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.Created(c, "Asset created successfully", asset)
+	response.Created(c, "Asset created successfully", asset)
+}
+
+func (h *AssetHandler) GetAssets(c *gin.Context) {
+	userID := utils.MustGetUserID(c)
+	var req dto.GetAssetsRequest
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Error(c, response.NewBadRequest("Invalid query parameters"))
+		return
+	}
+
+	// apply pagination defaults
+	if err := pagination.BindAndSetDefaults(c, &req); err != nil {
+		response.Error(c, response.BadRequest(err.Error()))
+		return
+	}
+
+	assets, total, err := h.service.GetAssets(userID, &req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	pag := pagination.Build(req.Page, req.Limit, total)
+
+	response.OKWithPagination(c, "Assets retrieved successfully", assets, pag)
+}
+
+func (h *AssetHandler) GetAssetByID(c *gin.Context) {
+	userID := utils.MustGetUserID(c)
+	assetID := c.Param("id")
+
+	asset, err := h.service.GetAssetByID(userID, assetID)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, "Asset retrieved successfully", asset)
 }
 
 func (h *AssetHandler) UpdateAsset(c *gin.Context) {
@@ -98,11 +94,10 @@ func (h *AssetHandler) UpdateAsset(c *gin.Context) {
 	if !utils.BindAndValidateForm(c, &req) {
 		return
 	}
-
-	if req.Image != nil {
+	if req.Image != nil && req.Image.Filename != "" {
 		imageURL, err := utils.UploadImageWithValidation(req.Image)
 		if err != nil {
-			utils.HandleError(c, err)
+			response.Error(c, err)
 			return
 		}
 		req.ImageURL = imageURL
@@ -111,11 +106,11 @@ func (h *AssetHandler) UpdateAsset(c *gin.Context) {
 	asset, err := h.service.UpdateAsset(userID, assetID, &req)
 	if err != nil {
 		utils.CleanupImageOnError(req.ImageURL)
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "Asset updated successfully", asset)
+	response.OK(c, "Asset updated successfully", asset)
 }
 
 func (h *AssetHandler) DeleteAsset(c *gin.Context) {
@@ -123,9 +118,9 @@ func (h *AssetHandler) DeleteAsset(c *gin.Context) {
 	userID := utils.MustGetUserID(c)
 
 	if err := h.service.DeleteAsset(userID, assetID); err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "Asset deleted successfully", assetID)
+	response.OK(c, "Asset deleted successfully", assetID)
 }

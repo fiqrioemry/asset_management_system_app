@@ -4,10 +4,10 @@ import (
 	"strings"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
-	"github.com/fiqrioemry/asset_management_system_app/server/errors"
 	"github.com/fiqrioemry/asset_management_system_app/server/models"
 	"github.com/fiqrioemry/asset_management_system_app/server/repositories"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 
 	"github.com/google/uuid"
 )
@@ -17,7 +17,7 @@ type AssetService interface {
 	GetAssetByID(userID, assetID string) (*dto.AssetResponse, error)
 	CreateAsset(userID string, req *dto.CreateAssetRequest) (*dto.AssetResponse, error)
 	UpdateAsset(userID, assetID string, req *dto.UpdateAssetRequest) (*dto.AssetResponse, error)
-	GetAssets(userID string, req *dto.GetAssetsRequest) (*[]dto.AssetResponse, *utils.Pagination, error)
+	GetAssets(userID string, req *dto.GetAssetsRequest) (*[]dto.AssetResponse, int, error)
 }
 
 type assetService struct {
@@ -38,96 +38,40 @@ func NewAssetService(
 	}
 }
 
-func (s *assetService) GetAssets(userID string, req *dto.GetAssetsRequest) (*[]dto.AssetResponse, *utils.Pagination, error) {
-	if req.SortBy == "" {
-		req.SortBy = "created_at"
-	}
-	if req.SortOrder == "" {
-		req.SortOrder = "desc"
-	}
-
-	// validate price range
-	if req.MinPrice != nil && req.MaxPrice != nil && *req.MinPrice > *req.MaxPrice {
-		return nil, nil, errors.NewBadRequest("Min price cannot be greater than max price")
-	}
-
-	filter := repositories.AssetFilter{
-		UserID:     userID,
-		Search:     strings.TrimSpace(req.Search),
-		CategoryID: req.CategoryID,
-		LocationID: req.LocationID,
-		Condition:  req.Condition,
-		MinPrice:   req.MinPrice,
-		MaxPrice:   req.MaxPrice,
-		SortBy:     req.SortBy,
-		SortOrder:  req.SortOrder,
-		Page:       req.Page,
-		Limit:      req.Limit,
-	}
-
-	// get assets and total count
-	assets, totalCount, err := s.assetRepo.GetAssetsWithFilter(filter)
-	if err != nil {
-		return nil, nil, errors.NewInternalServerError("Failed to get assets", err)
-	}
-
-	// convert assert to response
-	var assetResponses []dto.AssetResponse
-	for _, asset := range assets {
-		assetResponses = append(assetResponses, s.convertToResponse(&asset))
-	}
-
-	pagination := utils.BuildPagination(req.Page, req.Limit, totalCount)
-
-	return &assetResponses, pagination, nil
-}
-
-func (s *assetService) GetAssetByID(userID, assetID string) (*dto.AssetResponse, error) {
-	asset, err := s.assetRepo.GetByIDAndUserID(assetID, userID)
-	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get asset", err)
-	}
-	if asset == nil {
-		return nil, errors.NewNotFound("Asset not found")
-	}
-
-	response := s.convertToResponse(asset)
-	return &response, nil
-}
-
 func (s *assetService) CreateAsset(userID string, req *dto.CreateAssetRequest) (*dto.AssetResponse, error) {
+
 	// Validate location access
 	location, err := s.locationRepo.GetByIDAndUserID(req.LocationID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to validate location", err)
+		return nil, response.NewInternalServerError("Failed to validate location", err)
 	}
 	if location == nil {
-		return nil, errors.NewNotFound("Location not found or access denied")
+		return nil, response.NewNotFound("Location not found or access denied")
 	}
 
 	// Validate category access
 	category, err := s.categoryRepo.GetByIDAndUserID(req.CategoryID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to validate category", err)
+		return nil, response.NewInternalServerError("Failed to validate category", err)
 	}
 	if category == nil {
-		return nil, errors.NewNotFound("Category not found or access denied")
+		return nil, response.NewNotFound("Category not found or access denied")
 	}
 
-	// Parse UUIDs
+	// Parse all string IDs to UUIDs
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		return nil, errors.NewBadRequest("Invalid user ID")
+		return nil, response.NewBadRequest("Invalid user ID")
 	}
 
 	locationUUID, err := uuid.Parse(req.LocationID)
 	if err != nil {
-		return nil, errors.NewBadRequest("Invalid location ID")
+		return nil, response.NewBadRequest("Invalid location ID")
 	}
 
 	categoryUUID, err := uuid.Parse(req.CategoryID)
 	if err != nil {
-		return nil, errors.NewBadRequest("Invalid category ID")
+		return nil, response.NewBadRequest("Invalid category ID")
 	}
 
 	// Create asset
@@ -146,12 +90,62 @@ func (s *assetService) CreateAsset(userID string, req *dto.CreateAssetRequest) (
 	}
 
 	if err := s.assetRepo.Create(asset); err != nil {
-		return nil, errors.NewInternalServerError("Failed to create asset", err)
+		return nil, response.NewInternalServerError("Failed to create asset", err)
 	}
 
 	// Load relationships for response
 	asset.Location = *location
+
 	asset.Category = *category
+
+	response := s.convertToResponse(asset)
+	return &response, nil
+}
+
+func (s *assetService) GetAssets(userID string, req *dto.GetAssetsRequest) (*[]dto.AssetResponse, int, error) {
+
+	// validate price range
+	if req.MinPrice != nil && req.MaxPrice != nil && *req.MinPrice > *req.MaxPrice {
+		return nil, 0, response.NewBadRequest("Min price cannot be greater than max price")
+	}
+
+	filter := repositories.AssetFilter{
+		UserID:     userID,
+		Search:     strings.TrimSpace(req.Search),
+		CategoryID: req.CategoryID,
+		LocationID: req.LocationID,
+		Condition:  req.Condition,
+		MinPrice:   req.MinPrice,
+		MaxPrice:   req.MaxPrice,
+		SortBy:     req.SortBy,
+		SortOrder:  req.SortOrder,
+		Page:       req.Page,
+		Limit:      req.Limit,
+	}
+
+	// get assets and total count
+	assets, total, err := s.assetRepo.GetAssetsWithFilter(filter)
+	if err != nil {
+		return nil, 0, response.NewInternalServerError("Failed to get assets", err)
+	}
+
+	// convert assert to response
+	var assetResponses []dto.AssetResponse
+	for _, asset := range assets {
+		assetResponses = append(assetResponses, s.convertToResponse(&asset))
+	}
+
+	return &assetResponses, int(total), nil
+}
+
+func (s *assetService) GetAssetByID(userID, assetID string) (*dto.AssetResponse, error) {
+	asset, err := s.assetRepo.GetByIDAndUserID(assetID, userID)
+	if err != nil {
+		return nil, response.NewInternalServerError("Failed to get asset", err)
+	}
+	if asset == nil {
+		return nil, response.NewNotFound("Asset not found")
+	}
 
 	response := s.convertToResponse(asset)
 	return &response, nil
@@ -161,42 +155,42 @@ func (s *assetService) UpdateAsset(userID, assetID string, req *dto.UpdateAssetR
 	// Get asset and check ownership
 	asset, err := s.assetRepo.GetByIDAndUserID(assetID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get asset", err)
+		return nil, response.NewInternalServerError("Failed to get asset", err)
 	}
 	if asset == nil {
-		return nil, errors.NewNotFound("Asset not found or you don't have permission to update it")
+		return nil, response.NewNotFound("Asset not found or you don't have permission to update it")
 	}
 
 	// Validate location if provided
 	if req.LocationID != "" {
-		location, err := s.locationRepo.GetByIDAndUserID(req.LocationID, userID)
+		location, err := s.locationRepo.GetByID(req.LocationID)
 		if err != nil {
-			return nil, errors.NewInternalServerError("Failed to validate location", err)
+			return nil, response.NewInternalServerError("Failed to validate location", err)
 		}
 		if location == nil {
-			return nil, errors.NewNotFound("Location not found or access denied")
+			return nil, response.NewNotFound("Location not found or access denied")
 		}
 
 		locationUUID, err := uuid.Parse(req.LocationID)
 		if err != nil {
-			return nil, errors.NewBadRequest("Invalid location ID")
+			return nil, response.NewBadRequest("Invalid location ID")
 		}
 		asset.LocationID = locationUUID
 	}
 
 	// Validate category if provided
 	if req.CategoryID != "" {
-		category, err := s.categoryRepo.GetByIDAndUserID(req.CategoryID, userID)
+		category, err := s.categoryRepo.GetByID(req.CategoryID)
 		if err != nil {
-			return nil, errors.NewInternalServerError("Failed to validate category", err)
+			return nil, response.NewInternalServerError("Failed to validate category", err)
 		}
 		if category == nil {
-			return nil, errors.NewNotFound("Category not found or access denied")
+			return nil, response.NewNotFound("Category not found or access denied")
 		}
 
 		categoryUUID, err := uuid.Parse(req.CategoryID)
 		if err != nil {
-			return nil, errors.NewBadRequest("Invalid category ID")
+			return nil, response.NewBadRequest("Invalid category ID")
 		}
 		asset.CategoryID = categoryUUID
 	}
@@ -228,7 +222,7 @@ func (s *assetService) UpdateAsset(userID, assetID string, req *dto.UpdateAssetR
 	}
 
 	if err := s.assetRepo.Update(asset); err != nil {
-		return nil, errors.NewInternalServerError("Failed to update asset", err)
+		return nil, response.NewInternalServerError("Failed to update asset", err)
 	}
 
 	response := s.convertToResponse(asset)
@@ -239,17 +233,17 @@ func (s *assetService) DeleteAsset(userID, assetID string) error {
 	// Get asset and check ownership
 	asset, err := s.assetRepo.GetByIDAndUserID(assetID, userID)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to get asset", err)
+		return response.NewInternalServerError("Failed to get asset", err)
 	}
 	if asset == nil {
-		return errors.NewNotFound("Asset not found or you don't have permission to delete it")
+		return response.NewNotFound("Asset not found or you don't have permission to delete it")
 	}
 
 	if err := s.assetRepo.Delete(asset); err != nil {
-		return errors.NewInternalServerError("Failed to delete asset", err)
+		return response.NewInternalServerError("Failed to delete asset", err)
 	}
 
-	// Cleanup image if exists
+	// cleanup image if exists
 	if asset.Image != "" {
 		go utils.CleanupImageOnError(asset.Image)
 	}

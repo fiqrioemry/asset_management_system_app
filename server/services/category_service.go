@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
-	"github.com/fiqrioemry/asset_management_system_app/server/errors"
 	"github.com/fiqrioemry/asset_management_system_app/server/models"
 	"github.com/fiqrioemry/asset_management_system_app/server/repositories"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 	"github.com/google/uuid"
 )
 
@@ -35,7 +35,7 @@ func NewCategoryService(categoryRepo repositories.CategoryRepository) CategorySe
 	}
 }
 
-// GetCategoriesTree returns hierarchical tree structure
+// retrieves the category tree structure for a user
 func (s *categoryService) GetCategoriesTree(userID string) (*dto.CategoriesTreeResponse, error) {
 	cacheKey := fmt.Sprintf("asset_app:cache:categories:tree:%s", userID)
 
@@ -48,7 +48,7 @@ func (s *categoryService) GetCategoriesTree(userID string) (*dto.CategoriesTreeR
 	// Get category tree from database
 	categories, err := s.categoryRepo.GetCategoryTree(userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get categories", err)
+		return nil, response.NewInternalServerError("Failed to get categories", err)
 	}
 
 	// Convert to response format
@@ -96,7 +96,7 @@ func (s *categoryService) GetCategoriesFlat(userID string) (*dto.CategoriesFlatR
 	// Get all categories
 	categories, err := s.categoryRepo.GetAllUserCategories(userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get categories", err)
+		return nil, response.NewInternalServerError("Failed to get categories", err)
 	}
 
 	// Convert to flat response
@@ -136,7 +136,7 @@ func (s *categoryService) GetCategoriesFlat(userID string) (*dto.CategoriesFlatR
 func (s *categoryService) GetParentCategories(userID string) (*dto.CategoriesTreeResponse, error) {
 	categories, err := s.categoryRepo.GetParentCategories(userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get parent categories", err)
+		return nil, response.NewInternalServerError("Failed to get parent categories", err)
 	}
 
 	var categoryResponses []dto.CategoryResponse
@@ -156,7 +156,7 @@ func (s *categoryService) GetParentCategories(userID string) (*dto.CategoriesTre
 func (s *categoryService) GetChildCategories(parentID, userID string) (*dto.CategoriesTreeResponse, error) {
 	categories, err := s.categoryRepo.GetChildCategories(parentID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get child categories", err)
+		return nil, response.NewInternalServerError("Failed to get child categories", err)
 	}
 
 	var categoryResponses []dto.CategoryResponse
@@ -184,15 +184,15 @@ func (s *categoryService) CreateCategory(userID string, req *dto.CreateCategoryR
 		// Check if parent exists and user has access
 		hasAccess, err := s.categoryRepo.ValidateParentAccess(*req.ParentID, userID)
 		if err != nil {
-			return nil, errors.NewInternalServerError("Failed to validate parent access", err)
+			return nil, response.NewInternalServerError("Failed to validate parent access", err)
 		}
 		if !hasAccess {
-			return nil, errors.NewNotFound("Parent category not found or access denied")
+			return nil, response.NewNotFound("Parent category not found or access denied")
 		}
 
 		parentID, err := uuid.Parse(*req.ParentID)
 		if err != nil {
-			return nil, errors.NewBadRequest("Invalid parent ID")
+			return nil, response.NewBadRequest("Invalid parent ID")
 		}
 		parentUUID = &parentID
 	}
@@ -200,16 +200,16 @@ func (s *categoryService) CreateCategory(userID string, req *dto.CreateCategoryR
 	// Check if name already exists in same scope (same parent)
 	exists, err := s.categoryRepo.CheckNameExists(req.Name, userID, req.ParentID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to check category name", err)
+		return nil, response.NewInternalServerError("Failed to check category name", err)
 	}
 	if exists {
-		return nil, errors.NewConflict("Category name already exists in this scope")
+		return nil, response.NewConflict("Category name already exists in this scope")
 	}
 
 	// Parse userID
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		return nil, errors.NewBadRequest("Invalid user ID")
+		return nil, response.NewBadRequest("Invalid user ID")
 	}
 
 	// Create category
@@ -221,7 +221,7 @@ func (s *categoryService) CreateCategory(userID string, req *dto.CreateCategoryR
 	}
 
 	if err := s.categoryRepo.Create(category); err != nil {
-		return nil, errors.NewInternalServerError("Failed to create category", err)
+		return nil, response.NewInternalServerError("Failed to create category", err)
 	}
 
 	// Invalidate cache
@@ -236,20 +236,18 @@ func (s *categoryService) CreateCategory(userID string, req *dto.CreateCategoryR
 	return &response, nil
 }
 
-// UpdateCategory updates user's own category
 func (s *categoryService) UpdateCategory(userID, categoryID string, req *dto.UpdateCategoryRequest) (*dto.CategoryResponse, error) {
 	// Get category and check ownership
 	category, err := s.categoryRepo.GetByIDAndUserID(categoryID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get category", err)
+		return nil, response.NewInternalServerError("Failed to get category", err)
 	}
 	if category == nil {
-		return nil, errors.NewNotFound("Category not found or you don't have permission to update it")
+		return nil, response.NewNotFound("Category not found or you don't have permission to update it")
 	}
 
 	// Normalize name
 	req.Name = strings.TrimSpace(req.Name)
-	req.Name = strings.Title(strings.ToLower(req.Name))
 
 	// Validate parent if changed
 	var parentUUID *uuid.UUID
@@ -257,26 +255,26 @@ func (s *categoryService) UpdateCategory(userID, categoryID string, req *dto.Upd
 		// Check if parent exists and user has access
 		hasAccess, err := s.categoryRepo.ValidateParentAccess(*req.ParentID, userID)
 		if err != nil {
-			return nil, errors.NewInternalServerError("Failed to validate parent access", err)
+			return nil, response.NewInternalServerError("Failed to validate parent access", err)
 		}
 		if !hasAccess {
-			return nil, errors.NewNotFound("Parent category not found or access denied")
+			return nil, response.NewNotFound("Parent category not found or access denied")
 		}
 
 		parentID, err := uuid.Parse(*req.ParentID)
 		if err != nil {
-			return nil, errors.NewBadRequest("Invalid parent ID")
+			return nil, response.NewBadRequest("Invalid parent ID")
 		}
 		parentUUID = &parentID
 
 		// Cannot set self as parent
 		if *req.ParentID == categoryID {
-			return nil, errors.NewBadRequest("Category cannot be its own parent")
+			return nil, response.NewBadRequest("Category cannot be its own parent")
 		}
 	}
 
 	// Check name uniqueness in new scope if name or parent changed
-	nameChanged := strings.ToLower(req.Name) != strings.ToLower(category.Name)
+	nameChanged := !strings.EqualFold(req.Name, category.Name)
 	parentChanged := (req.ParentID == nil && category.ParentID != nil) ||
 		(req.ParentID != nil && category.ParentID == nil) ||
 		(req.ParentID != nil && category.ParentID != nil && *req.ParentID != category.ParentID.String())
@@ -284,10 +282,10 @@ func (s *categoryService) UpdateCategory(userID, categoryID string, req *dto.Upd
 	if nameChanged || parentChanged {
 		exists, err := s.categoryRepo.CheckNameExists(req.Name, userID, req.ParentID)
 		if err != nil {
-			return nil, errors.NewInternalServerError("Failed to check category name", err)
+			return nil, response.NewInternalServerError("Failed to check category name", err)
 		}
 		if exists {
-			return nil, errors.NewConflict("Category name already exists in this scope")
+			return nil, response.NewConflict("Category name already exists in this scope")
 		}
 	}
 
@@ -296,7 +294,7 @@ func (s *categoryService) UpdateCategory(userID, categoryID string, req *dto.Upd
 	category.ParentID = parentUUID
 
 	if err := s.categoryRepo.Update(category); err != nil {
-		return nil, errors.NewInternalServerError("Failed to update category", err)
+		return nil, response.NewInternalServerError("Failed to update category", err)
 	}
 
 	// Invalidate cache
@@ -311,43 +309,42 @@ func (s *categoryService) UpdateCategory(userID, categoryID string, req *dto.Upd
 	return &response, nil
 }
 
-// DeleteCategory deletes user's own category
 func (s *categoryService) DeleteCategory(userID, categoryID string) error {
 	// Get category and check ownership
 	category, err := s.categoryRepo.GetByIDAndUserID(categoryID, userID)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to get category", err)
+		return response.NewInternalServerError("Failed to get category", err)
 	}
 	if category == nil {
-		return errors.NewNotFound("Category not found or you don't have permission to delete it")
+		return response.NewNotFound("Category not found or you don't have permission to delete it")
 	}
 
 	// Cannot delete system default categories
 	if category.IsDefault {
-		return errors.NewForbidden("Cannot delete system default category")
+		return response.NewForbidden("Cannot delete system default category")
 	}
 
 	// Check if category has children
 	childCount, err := s.categoryRepo.CountChildCategories(categoryID)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to check child categories", err)
+		return response.NewInternalServerError("Failed to check child categories", err)
 	}
 	if childCount > 0 {
-		return errors.NewConflict("Cannot delete category that has subcategories")
+		return response.NewConflict("Cannot delete category that has subcategories")
 	}
 
 	// Check if category is being used by assets
 	assetCount, err := s.categoryRepo.CountAssetsByCategory(categoryID, userID)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to check category usage", err)
+		return response.NewInternalServerError("Failed to check category usage", err)
 	}
 	if assetCount > 0 {
-		return errors.NewConflict("Cannot delete category that is being used by assets")
+		return response.NewConflict("Cannot delete category that is being used by assets")
 	}
 
 	// Delete category
 	if err := s.categoryRepo.Delete(category); err != nil {
-		return errors.NewInternalServerError("Failed to delete category", err)
+		return response.NewInternalServerError("Failed to delete category", err)
 	}
 
 	// Invalidate cache
@@ -356,19 +353,18 @@ func (s *categoryService) DeleteCategory(userID, categoryID string) error {
 	return nil
 }
 
-// GetCategoryByID gets specific category
 func (s *categoryService) GetCategoryByID(userID, categoryID string) (*dto.CategoryResponse, error) {
 	category, err := s.categoryRepo.GetByID(categoryID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get category", err)
+		return nil, response.NewInternalServerError("Failed to get category", err)
 	}
 	if category == nil {
-		return nil, errors.NewNotFound("Category not found")
+		return nil, response.NewNotFound("Category not found")
 	}
 
 	// Check if user can access this category
 	if category.UserID != nil && category.UserID.String() != userID {
-		return nil, errors.NewNotFound("Category not found")
+		return nil, response.NewNotFound("Category not found")
 	}
 
 	level := 0
@@ -376,8 +372,9 @@ func (s *categoryService) GetCategoryByID(userID, categoryID string) (*dto.Categ
 		level = 1
 	}
 
-	response := s.convertToResponse(category, level)
-	return &response, nil
+	// Convert to response format
+	resp := s.convertToResponse(category, level)
+	return &resp, nil
 }
 
 // GetAssetsByCategory gets all assets in specific category
@@ -391,7 +388,7 @@ func (s *categoryService) GetAssetsByCategory(userID, categoryID string) (*dto.C
 	// Get assets for this category
 	assets, err := s.categoryRepo.GetAssetsByCategory(categoryID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get assets", err)
+		return nil, response.NewInternalServerError("Failed to get assets", err)
 	}
 
 	// Convert assets to response format
@@ -408,18 +405,18 @@ func (s *categoryService) GetAssetsByCategory(userID, categoryID string) (*dto.C
 		})
 	}
 
-	response := &dto.CategoryWithAssetsResponse{
+	resp := &dto.CategoryWithAssetsResponse{
 		Category: *categoryResponse,
 		Assets:   assetResponses,
 		Total:    len(assetResponses),
 	}
 
-	return response, nil
+	return resp, nil
 }
 
 // Helper methods
 func (s *categoryService) convertToResponse(category *models.Category, level int) dto.CategoryResponse {
-	response := dto.CategoryResponse{
+	resp := dto.CategoryResponse{
 		ID:        category.ID.String(),
 		Name:      category.Name,
 		IsDefault: category.IsDefault,
@@ -431,10 +428,10 @@ func (s *categoryService) convertToResponse(category *models.Category, level int
 	}
 
 	if category.ParentID != nil {
-		response.ParentID = &[]string{category.ParentID.String()}[0]
+		resp.ParentID = &[]string{category.ParentID.String()}[0]
 	}
 
-	return response
+	return resp
 }
 
 func (s *categoryService) getFullCategoryName(category *models.Category) string {
@@ -456,5 +453,5 @@ func (s *categoryService) invalidateUserCache(userID string) {
 		fmt.Sprintf("asset_app:cache:categories:tree:%s", userID),
 		fmt.Sprintf("asset_app:cache:categories:flat:%s", userID),
 	}
-	utils.DeleteKeys(cacheKeys...)
+	go utils.DeleteKeys(cacheKeys...)
 }

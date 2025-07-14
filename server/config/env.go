@@ -82,7 +82,7 @@ func LoadConfig() {
 		RateLimitDuration:   getEnvAsDuration("RATE_LIMIT_DURATION", "60s"),
 		MaxFileSize:         getEnvAsInt64("MAX_FILE_SIZE", 12<<20),
 		TrustedProxies:      getEnvAsStringSlice("TRUSTED_PROXIES", []string{"localhost"}),
-		SkippedApiEndpoints: getEnvAsStringSlice("SKIPPED_API_ENDPOINTS", []string{"/health", "/"}),
+		SkippedApiEndpoints: getEnvAsStringSlice("SKIPPED_API_ENDPOINTS", []string{"/health"}),
 		AllowedOrigins:      getEnvAsStringSlice("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
 
 		// Database
@@ -167,7 +167,7 @@ func getEnvAsStringSlice(key string, defaultValue []string) []string {
 	}
 
 	var result []string
-	for _, item := range strings.Split(value, ",") {
+	for item := range strings.SplitSeq(value, ",") {
 		trimmed := strings.TrimSpace(item)
 		if trimmed != "" {
 			result = append(result, trimmed)

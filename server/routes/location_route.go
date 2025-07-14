@@ -11,8 +11,8 @@ func LocationRoutes(r *gin.RouterGroup, h *handlers.LocationHandler) {
 	locations := r.Group("/locations")
 	locations.Use(middlewares.AuthRequired())
 	{
-		locations.GET("/", h.GetLocations)                  // GET /api/v1/locations
-		locations.POST("/", h.CreateLocation)               // POST /api/v1/locations
+		locations.GET("", h.GetLocations)                   // GET /api/v1/locations
+		locations.POST("", h.CreateLocation)                // POST /api/v1/locations
 		locations.GET("/:id", h.GetLocationByID)            // GET /api/v1/locations/:id
 		locations.PUT("/:id", h.UpdateLocation)             // PUT /api/v1/locations/:id
 		locations.DELETE("/:id", h.DeleteLocation)          // DELETE /api/v1/locations/:id

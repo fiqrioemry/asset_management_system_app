@@ -25,7 +25,7 @@ var AllowedImageTypes = []string{"image/jpeg", "image/png", "image/gif", "image/
 func UploadToCloudinary(file io.Reader) (string, error) {
 	ctx := context.Background()
 
-	folder := os.Getenv("CLOUDINARY_FOLDER_NAME")
+	folder := config.AppConfig.CloudFolder
 
 	uploadResult, err := config.Cloud.Upload.Upload(ctx, file, uploader.UploadParams{
 		Folder:         folder,
@@ -49,7 +49,7 @@ func DeleteFromCloudinary(imageURL string) error {
 	}
 
 	deleteResult, err := config.Cloud.Upload.Destroy(ctx, uploader.DestroyParams{
-		PublicID: os.Getenv("CLOUDINARY_FOLDER_NAME") + "/" + publicID,
+		PublicID: config.AppConfig.CloudFolder + "/" + publicID,
 	})
 	if err != nil {
 		log.Printf("failed to delete file from Cloudinary: %v", err)

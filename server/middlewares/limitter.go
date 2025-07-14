@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/config"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,12 +23,12 @@ func RateLimiter(maxAttempts int, duration time.Duration) gin.HandlerFunc {
 		count, _ := config.RedisClient.Get(config.Ctx, key).Int()
 
 		if count >= maxAttempts {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "Too many requests",
-				"message":     "Rate limit exceeded. Please try again later.",
-				"retry_after": int(duration.Seconds()),
-			})
-			c.Abort()
+			c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", maxAttempts))
+			c.Header("X-RateLimit-Remaining", "0")
+			c.Header("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(duration).Unix()))
+
+			err := response.NewTooManyRequests("Rate limit exceeded. Please try again later.")
+			response.Error(c, err)
 			return
 		}
 
@@ -47,6 +48,14 @@ func RateLimiter(maxAttempts int, duration time.Duration) gin.HandlerFunc {
 
 func LimitFileSize(maxSize int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request.ContentLength > maxSize {
+			err := response.NewRequestTooLarge(
+				fmt.Sprintf("Request body too large. Maximum size: %d bytes", maxSize),
+			)
+			response.Error(c, err)
+			return
+		}
+
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSize)
 		c.Next()
 	}

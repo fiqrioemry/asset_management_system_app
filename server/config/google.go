@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -15,4 +17,6 @@ func InitGoogleOAuthConfig() {
 		Scopes:       []string{"openid", "email", "profile"},
 		Endpoint:     google.Endpoint,
 	}
+
+	fmt.Println("✅ Google OAuth configured")
 }

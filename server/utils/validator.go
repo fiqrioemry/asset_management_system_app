@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fiqrioemry/asset_management_system_app/server/errors"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -14,49 +14,54 @@ import (
 func BindAndValidateJSON[T any](c *gin.Context, req *T) bool {
 	if err := c.ShouldBindJSON(req); err != nil {
 
+		// Handle validation errors
 		if validationErrors, ok := err.(validator.ValidationErrors); ok {
 			validationErr := buildValidationError(validationErrors)
-			HandleError(c, validationErr)
+			response.Error(c, validationErr)
 			return false
 		}
-
+		// Handle specific JSON parsing errors
 		if jsonErr, ok := err.(*json.UnmarshalTypeError); ok {
-			parseErr := errors.NewBadRequest("Invalid data type for field").WithContext("field", jsonErr.Field).WithContext("expected_type", jsonErr.Type.String())
-			HandleError(c, parseErr)
+			parseErr := response.NewBadRequest("Invalid data type for field").WithContext("field", jsonErr.Field).WithContext("expected_type", jsonErr.Type.String())
+			response.Error(c, parseErr)
 			return false
 		}
 
+		// Handle syntax errors in JSON
 		if syntaxErr, ok := err.(*json.SyntaxError); ok {
-
-			parseErr := errors.NewBadRequest("Invalid JSON syntax").WithContext("offset", syntaxErr.Offset)
-			HandleError(c, parseErr)
+			parseErr := response.NewBadRequest("Invalid JSON syntax").WithContext("offset", syntaxErr.Offset)
+			response.Error(c, parseErr)
 			return false
 		}
 
-		parseErr := errors.NewBadRequest("Invalid JSON format")
-		HandleError(c, parseErr)
+		// Handle other binding errors
+		parseErr := response.NewBadRequest("Invalid JSON format")
+		response.Error(c, parseErr)
 		return false
 	}
 	return true
 }
+
 func BindAndValidateForm[T any](c *gin.Context, req *T) bool {
 	if err := c.ShouldBind(req); err != nil {
+
 		if validationErrors, ok := err.(validator.ValidationErrors); ok {
+			// Handle validation errors
 			validationErr := buildValidationError(validationErrors)
-			HandleError(c, validationErr)
+			response.Error(c, validationErr)
 			return false
 		}
 
-		formErr := errors.NewBadRequest("Invalid form data format")
-		HandleError(c, formErr)
+		formErr := response.NewBadRequest(fmt.Sprintf("Invalid form data format: %v", err))
+		response.Error(c, formErr)
 		return false
 	}
 	return true
 }
+func buildValidationError(validationErrors validator.ValidationErrors) *response.AppError {
+	errorDetails := make(map[string]any)
 
-func buildValidationError(validationErrors validator.ValidationErrors) *errors.AppError {
-	errorDetails := make(map[string]string)
-
+	// Iterate over validation errors and build a user-friendly error message
 	for _, fieldError := range validationErrors {
 		fieldName := strings.ToLower(fieldError.Field())
 
@@ -86,9 +91,8 @@ func buildValidationError(validationErrors validator.ValidationErrors) *errors.A
 		}
 	}
 
-	err := errors.NewBadRequest("Validation failed")
-	err.WithContext("validation_errors", errorDetails)
-	err.WithContext("failed_fields", len(errorDetails))
+	err := response.NewBadRequest("Validation failed")
+	err.WithContext("errors", errorDetails)
 
 	return err
 }

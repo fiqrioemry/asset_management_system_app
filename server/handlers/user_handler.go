@@ -5,9 +5,9 @@ import (
 
 	"github.com/fiqrioemry/asset_management_system_app/server/config"
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
-	"github.com/fiqrioemry/asset_management_system_app/server/errors"
 	"github.com/fiqrioemry/asset_management_system_app/server/services"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,17 +26,17 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	response, err := h.service.Login(&req)
+	loginResponse, err := h.service.Login(&req)
 	if err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.SetAccessTokenCookie(c, response.AccessToken)
+	utils.SetAccessTokenCookie(c, loginResponse.AccessToken)
 
-	utils.SetRefreshTokenCookie(c, response.RefreshToken)
+	utils.SetRefreshTokenCookie(c, loginResponse.RefreshToken)
 
-	utils.OK(c, "Asset retrieved successfully", response.User)
+	response.OK(c, "Asset retrieved successfully", loginResponse.User)
 }
 
 func (h *UserHandler) Register(c *gin.Context) {
@@ -45,17 +45,17 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	response, err := h.service.Register(&req)
+	registerResponse, err := h.service.Register(&req)
 	if err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.SetAccessTokenCookie(c, response.AccessToken)
+	utils.SetAccessTokenCookie(c, registerResponse.AccessToken)
 
-	utils.SetRefreshTokenCookie(c, response.RefreshToken)
+	utils.SetRefreshTokenCookie(c, registerResponse.RefreshToken)
 
-	utils.Created(c, "Registration successful", response.User)
+	response.Created(c, "Registration successful", registerResponse.User)
 
 }
 
@@ -63,24 +63,24 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	utils.ClearAccessTokenCookie(c)
 	utils.ClearRefreshTokenCookie(c)
 
-	utils.OK(c, "Logout successful", nil)
+	response.OK(c, "Logout successful", nil)
 }
 
 func (h *UserHandler) RefreshSession(c *gin.Context) {
 	refreshToken, err := c.Cookie("refreshToken")
 
 	if err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
 	user, err := h.service.RefreshSession(c, refreshToken)
 	if err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "Session refreshed successfully", user)
+	response.OK(c, "Session refreshed successfully", user)
 }
 
 func (h *UserHandler) GetMe(c *gin.Context) {
@@ -88,11 +88,11 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 
 	user, err := h.service.GetMe(userID)
 	if err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "User retrieved successfully", user)
+	response.OK(c, "User retrieved successfully", user)
 }
 
 func (h *UserHandler) UpdateMe(c *gin.Context) {
@@ -106,7 +106,7 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 	if req.Avatar != nil {
 		avatarURL, err := utils.UploadImageWithValidation(req.Avatar)
 		if err != nil {
-			utils.HandleError(c, err)
+			response.Error(c, err)
 			return
 		}
 		req.AvatarURL = avatarURL
@@ -115,11 +115,11 @@ func (h *UserHandler) UpdateMe(c *gin.Context) {
 	updatedUser, err := h.service.UpdateMe(userID, &req)
 	if err != nil {
 		utils.CleanupImageOnError(req.AvatarURL)
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "User updated successfully", updatedUser)
+	response.OK(c, "User updated successfully", updatedUser)
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {
@@ -131,11 +131,11 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 
 	if err := h.service.ChangePassword(userID, &req); err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "Password changed successfully", nil)
+	response.OK(c, "Password changed successfully", nil)
 }
 
 // step 1 : User requests password reset
@@ -147,11 +147,11 @@ func (h *UserHandler) ForgotPassword(c *gin.Context) {
 	}
 
 	if err := h.service.ForgotPassword(c, &req); err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "Password reset link sent successfully", nil)
+	response.OK(c, "Password reset link sent successfully", nil)
 
 }
 
@@ -161,11 +161,11 @@ func (h *UserHandler) ValidateResetToken(c *gin.Context) {
 
 	email, err := h.service.ValidateToken(token)
 	if err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "Reset token is valid", email)
+	response.OK(c, "Reset token is valid", email)
 }
 
 // step 3 : reset password
@@ -176,11 +176,11 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	}
 
 	if err := h.service.ResetPassword(&req); err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 
-	utils.OK(c, "Password has been reset successfully", nil)
+	response.OK(c, "Password has been reset successfully", nil)
 }
 
 func (h *UserHandler) GoogleOAuthRedirect(c *gin.Context) {
@@ -191,13 +191,13 @@ func (h *UserHandler) GoogleOAuthRedirect(c *gin.Context) {
 func (h *UserHandler) GoogleOAuthCallback(c *gin.Context) {
 	code := c.Query("code")
 	if code == "" {
-		utils.HandleError(c, errors.NewBadRequest("Authorization code is missing"))
+		response.Error(c, response.NewBadRequest("Authorization code is missing"))
 		return
 	}
 
 	tokens, err := h.service.HandleGoogleOAuthCallback(code)
 	if err != nil {
-		utils.HandleError(c, err)
+		response.Error(c, err)
 		return
 	}
 

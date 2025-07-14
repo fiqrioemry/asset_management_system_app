@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/config"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,6 +16,11 @@ func CORS() gin.HandlerFunc {
 
 		if config.AppConfig.AppEnv == "production" {
 			allowedOrigin = getProductionOrigin(origin)
+			if origin != "" && allowedOrigin == "" {
+				err := response.NewForbidden("Origin not allowed by CORS policy")
+				response.Error(c, err)
+				return
+			}
 		} else {
 			allowedOrigin = getDevelopmentOrigin(origin)
 		}
@@ -25,7 +31,6 @@ func CORS() gin.HandlerFunc {
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
 
-		// Handle preflight requests
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -44,7 +49,7 @@ func getProductionOrigin(origin string) string {
 		return config.AppConfig.AllowedOrigins[0]
 	}
 
-	return "" // Deny unknown origins in production
+	return ""
 }
 
 func getDevelopmentOrigin(origin string) string {
@@ -52,17 +57,15 @@ func getDevelopmentOrigin(origin string) string {
 		return origin
 	}
 
-	for _, allowedOrigin := range config.AppConfig.AllowedOrigins {
-		if origin == allowedOrigin {
-			return origin
-		}
+	if slices.Contains(config.AppConfig.AllowedOrigins, origin) {
+		return origin
 	}
 
 	if len(config.AppConfig.AllowedOrigins) > 0 {
 		return config.AppConfig.AllowedOrigins[0]
 	}
 
-	return "*" // Allow all in development if no origins configured
+	return "*"
 }
 
 func isLocalhost(origin string) bool {

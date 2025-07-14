@@ -7,10 +7,10 @@ import (
 
 	"github.com/fiqrioemry/asset_management_system_app/server/config"
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
-	"github.com/fiqrioemry/asset_management_system_app/server/errors"
 	"github.com/fiqrioemry/asset_management_system_app/server/models"
 	"github.com/fiqrioemry/asset_management_system_app/server/repositories"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -54,7 +54,7 @@ func (s *userService) Login(req *dto.LoginRequest) (*dto.AuthResponse, error) {
 	// store attempt as cache
 	redisKey := fmt.Sprintf("asset_app:login:attempt:%s", req.Email)
 	if err := utils.CheckAttempts(redisKey, 5); err != nil {
-		return nil, errors.NewTooManyRequests("Too many login attempts, please try again later")
+		return nil, response.NewTooManyRequests("Too many login attempts, please try again later")
 	}
 
 	// check if exist
@@ -62,22 +62,22 @@ func (s *userService) Login(req *dto.LoginRequest) (*dto.AuthResponse, error) {
 	if err != nil || user == nil || !utils.CheckPasswordHash(req.Password, user.Password) {
 		// increment attempts cache
 		utils.IncrementAttempts(redisKey)
-		return nil, errors.NewUnauthorized("Invalid email or password")
+		return nil, response.NewUnauthorized("Invalid email or password")
 	}
 
 	// delete attempts cache
-	utils.DeleteKeys(redisKey)
+	go utils.DeleteKeys(redisKey)
 
 	// generate accessToken
 	accessToken, err := utils.GenerateAccessToken(user.ID.String())
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to generate access token", err)
+		return nil, response.NewInternalServerError("Failed to generate access token", err)
 	}
 
 	// generate refreshToken
 	refreshToken, err := utils.GenerateRefreshToken(user.ID.String())
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to generate refresh token", err)
+		return nil, response.NewInternalServerError("Failed to generate refresh token", err)
 	}
 
 	userResponse := dto.UserSession{
@@ -99,17 +99,17 @@ func (s *userService) Register(req *dto.RegisterRequest) (*dto.AuthResponse, err
 	// check user exist
 	user, err := s.user.GetByEmail(req.Email)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to check user existence", err)
+		return nil, response.NewInternalServerError("Failed to check user existence", err)
 	}
 
 	if user != nil {
-		return nil, errors.NewConflict("Email already registered")
+		return nil, response.NewConflict("Email already registered")
 	}
 
 	// hash password
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to hash password", err)
+		return nil, response.NewInternalServerError("Failed to hash password", err)
 	}
 
 	newUser := models.User{
@@ -121,7 +121,7 @@ func (s *userService) Register(req *dto.RegisterRequest) (*dto.AuthResponse, err
 
 	// create new user
 	if err := s.user.Create(&newUser); err != nil {
-		return nil, errors.NewConflict("Email is already registered")
+		return nil, response.NewConflict("Email is already registered")
 	}
 
 	userResponse := dto.UserSession{
@@ -134,12 +134,12 @@ func (s *userService) Register(req *dto.RegisterRequest) (*dto.AuthResponse, err
 	// generate accessToken
 	accessToken, err := utils.GenerateAccessToken(newUser.ID.String())
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to generate access token", err)
+		return nil, response.NewInternalServerError("Failed to generate access token", err)
 	}
 	// generate refreshToken
 	refreshToken, err := utils.GenerateRefreshToken(newUser.ID.String())
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to generate refresh token", err)
+		return nil, response.NewInternalServerError("Failed to generate refresh token", err)
 	}
 
 	return &dto.AuthResponse{
@@ -154,13 +154,13 @@ func (s *userService) RefreshSession(c *gin.Context, token string) (*dto.UserSes
 	// decode refreshToken
 	userID, err := utils.DecodeRefreshToken(token)
 	if err != nil {
-		return nil, errors.NewUnauthorized("Invalid refresh token")
+		return nil, response.NewUnauthorized("Invalid refresh token")
 	}
 
 	// check user exists
 	user, err := s.user.GetByID(userID)
 	if err != nil || user == nil {
-		return nil, errors.NewNotFound("User not found").WithContext("userID", userID)
+		return nil, response.NewNotFound("User not found").WithContext("userID", userID)
 	}
 
 	userResponse := dto.UserSession{
@@ -173,7 +173,7 @@ func (s *userService) RefreshSession(c *gin.Context, token string) (*dto.UserSes
 	// generate accessToken
 	accessToken, err := utils.GenerateAccessToken(user.ID.String())
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to generate access token", err)
+		return nil, response.NewInternalServerError("Failed to generate access token", err)
 	}
 
 	// set accessToken
@@ -187,7 +187,7 @@ func (s *userService) GetMe(id string) (*dto.UserProfileResponse, error) {
 	// check user exists
 	user, err := s.user.GetByID(id)
 	if err != nil || user == nil {
-		return nil, errors.NewNotFound("User not found")
+		return nil, response.NewNotFound("User not found")
 	}
 
 	return &dto.UserProfileResponse{
@@ -203,7 +203,7 @@ func (s *userService) UpdateMe(id string, req *dto.UpdateUserRequest) (*dto.User
 	// check user exists
 	user, err := s.user.GetByID(id)
 	if err != nil || user == nil {
-		return nil, errors.NewNotFound("User not found")
+		return nil, response.NewNotFound("User not found")
 	}
 
 	if req.Fullname != "" {
@@ -215,7 +215,7 @@ func (s *userService) UpdateMe(id string, req *dto.UpdateUserRequest) (*dto.User
 	}
 	// update user
 	if err := s.user.Update(user); err != nil {
-		return nil, errors.NewInternalServerError("Failed to update user", err)
+		return nil, response.NewInternalServerError("Failed to update user", err)
 	}
 
 	return &dto.UserProfileResponse{
@@ -230,30 +230,30 @@ func (s *userService) UpdateMe(id string, req *dto.UpdateUserRequest) (*dto.User
 func (s *userService) ChangePassword(userID string, req *dto.ChangePasswordRequest) error {
 	// Validate confirm password
 	if req.NewPassword != req.ConfirmPassword {
-		return errors.NewBadRequest("New password and confirm password don't match")
+		return response.NewBadRequest("New password and confirm password don't match")
 	}
 
 	// check if user exists
 	user, err := s.user.GetByID(userID)
 	if err != nil {
-		return errors.NewNotFound("User not found")
+		return response.NewNotFound("User not found")
 	}
 
 	// Verify current password
 	if !utils.CheckPasswordHash(req.CurrentPassword, user.Password) {
-		return errors.NewBadRequest("Current password is incorrect")
+		return response.NewBadRequest("Current password is incorrect")
 	}
 
 	// Hash new password
 	hashedPassword, err := utils.HashPassword(req.NewPassword)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to hash password", err)
+		return response.NewInternalServerError("Failed to hash password", err)
 	}
 
 	// Update password
 	user.Password = hashedPassword
 	if err := s.user.Update(user); err != nil {
-		return errors.NewInternalServerError("Failed to update password", err)
+		return response.NewInternalServerError("Failed to update password", err)
 	}
 
 	return nil
@@ -263,13 +263,13 @@ func (s *userService) ForgotPassword(c *gin.Context, req *dto.ForgotPasswordRequ
 	// Check rate limit attempts
 	attemptsKey := "asset_app:forgot_password_attempts:" + c.ClientIP()
 	if err := utils.CheckForgotPasswordAttempts(c.ClientIP(), 3); err != nil {
-		return errors.NewTooManyRequests("Too many forgot password attempts, please try again later")
+		return response.NewTooManyRequests("Too many forgot password attempts, please try again later")
 	}
 
 	// Check token existence
 	existingTokenKey := "asset_app:reset_token:" + req.Email
 	if utils.KeyExists(existingTokenKey) {
-		return errors.NewTooManyRequests("Password reset link has already been sent. Please check your email or wait before requesting again.")
+		return response.NewTooManyRequests("Password reset link has already been sent. Please check your email or wait before requesting again.")
 	}
 
 	// Check if email exists
@@ -288,7 +288,7 @@ func (s *userService) ForgotPassword(c *gin.Context, req *dto.ForgotPasswordRequ
 	// Generate reset token
 	resetToken, err := utils.GenerateResetToken()
 	if err != nil {
-		return errors.NewInternalServerError("Failed to generate reset token", err)
+		return response.NewInternalServerError("Failed to generate reset token", err)
 	}
 
 	// Prepare token data
@@ -302,7 +302,7 @@ func (s *userService) ForgotPassword(c *gin.Context, req *dto.ForgotPasswordRequ
 	// Store reset token data
 	resetTokenKey := "asset_app:password_reset:" + resetToken
 	if err := utils.AddKeys(resetTokenKey, tokenData, 1*time.Hour); err != nil {
-		return errors.NewInternalServerError("Failed to store reset token", err)
+		return response.NewInternalServerError("Failed to store reset token", err)
 	}
 
 	// Store email -
@@ -310,7 +310,7 @@ func (s *userService) ForgotPassword(c *gin.Context, req *dto.ForgotPasswordRequ
 	if err := utils.AddKeys(emailTokenKey, resetToken, 1*time.Hour); err != nil {
 		// Clean up reset token
 		utils.DeleteKeys(resetTokenKey)
-		return errors.NewInternalServerError("Failed to store email token mapping", err)
+		return response.NewInternalServerError("Failed to store email token mapping", err)
 	}
 
 	// Create reset link
@@ -322,11 +322,11 @@ func (s *userService) ForgotPassword(c *gin.Context, req *dto.ForgotPasswordRequ
 	if err := utils.SendResetPasswordEmail(user.Email, user.Fullname, resetLink, 1*time.Hour); err != nil {
 		// Clean up tokens
 		utils.DeleteKeys(resetTokenKey, emailTokenKey)
-		return errors.NewInternalServerError("Failed to send reset password email", err)
+		return response.NewInternalServerError("Failed to send reset password email", err)
 	}
 
 	// Increment attempts
-	utils.IncrementAttempts(attemptsKey)
+	go utils.IncrementAttempts(attemptsKey)
 
 	return nil
 }
@@ -335,7 +335,7 @@ func (s *userService) ResetPassword(req *dto.ResetPasswordRequest) error {
 
 	// check password match
 	if req.NewPassword != req.ConfirmPassword {
-		return errors.NewBadRequest("New password and confirm password do not match")
+		return response.NewBadRequest("New password and confirm password do not match")
 	}
 
 	resetTokenKey := "asset_app:password_reset:" + req.Token
@@ -343,42 +343,42 @@ func (s *userService) ResetPassword(req *dto.ResetPasswordRequest) error {
 
 	// get token from cache
 	if err := utils.GetKey(resetTokenKey, &tokenData); err != nil {
-		return errors.NewBadRequest("Invalid or expired reset token")
+		return response.NewBadRequest("Invalid or expired reset token")
 	}
 
 	email, ok := tokenData["email"].(string)
 	if !ok {
-		return errors.NewBadRequest("Invalid reset token data")
+		return response.NewBadRequest("Invalid reset token data")
 	}
 
 	userID, ok := tokenData["userId"].(string)
 	if !ok {
-		return errors.NewBadRequest("Invalid reset token data")
+		return response.NewBadRequest("Invalid reset token data")
 	}
 
 	// check user exists
 	user, err := s.user.GetByID(userID)
 	if err != nil {
-		return errors.NewNotFound("User not found")
+		return response.NewNotFound("User not found")
 	}
 
 	// hash new password
 	hashedPassword, err := utils.HashPassword(req.NewPassword)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to hash password", err)
+		return response.NewInternalServerError("Failed to hash password", err)
 	}
 
 	// update user password
 	user.Password = hashedPassword
 
 	if err := s.user.Update(user); err != nil {
-		return errors.NewInternalServerError("Failed to update password", err)
+		return response.NewInternalServerError("Failed to update password", err)
 	}
 
 	// delete related cache keys
-	utils.DeleteKeys(resetTokenKey)
-	utils.DeleteKeys("asset_app:reset_token:" + email)
-	utils.DeleteKeys("asset_app:forgot_password_attempts:" + email)
+	go utils.DeleteKeys(resetTokenKey)
+	go utils.DeleteKeys("asset_app:reset_token:" + email)
+	go utils.DeleteKeys("asset_app:forgot_password_attempts:" + email)
 
 	return nil
 }
@@ -389,19 +389,19 @@ func (s *userService) ValidateToken(token string) (string, error) {
 	var tokenData map[string]any
 	// check token existence
 	if err := utils.GetKey(resetTokenKey, &tokenData); err != nil {
-		return "", errors.NewBadRequest("Invalid or expired reset token")
+		return "", response.NewBadRequest("Invalid or expired reset token")
 	}
 
 	// Check token age
 	createdAt, ok := tokenData["createdAt"].(float64)
 	if !ok {
-		return "", errors.NewBadRequest("Invalid token data")
+		return "", response.NewBadRequest("Invalid token data")
 	}
 
 	tokenAge := time.Since(time.Unix(int64(createdAt), 0))
 	if tokenAge > 1*time.Hour {
 		utils.DeleteKeys(resetTokenKey)
-		return "", errors.NewBadRequest("Reset token has expired")
+		return "", response.NewBadRequest("Reset token has expired")
 	}
 
 	// email for display
@@ -414,12 +414,12 @@ func (s *userService) ValidateToken(token string) (string, error) {
 func (s *userService) GoogleSignIn(tokenId string) (*dto.AuthResponse, error) {
 	payload, err := idtoken.Validate(context.Background(), tokenId, config.AppConfig.GoogleClientID)
 	if err != nil {
-		return nil, errors.NewUnauthorized("Invalid Google ID token")
+		return nil, response.NewUnauthorized("Invalid Google ID token")
 	}
 
 	email, ok := payload.Claims["email"].(string)
 	if !ok || email == "" {
-		return nil, errors.NewNotFound("Email not found in token")
+		return nil, response.NewNotFound("Email not found in token")
 	}
 
 	name, _ := payload.Claims["name"].(string)
@@ -438,7 +438,7 @@ func (s *userService) GoogleSignIn(tokenId string) (*dto.AuthResponse, error) {
 		}
 
 		if user.ID == uuid.Nil {
-			return nil, errors.NewInternalServerError("Failed to assign UUID to user", err)
+			return nil, response.NewInternalServerError("Failed to assign UUID to user", err)
 		}
 	}
 
@@ -465,12 +465,12 @@ func (s *userService) GetGoogleOAuthURL() string {
 func (s *userService) HandleGoogleOAuthCallback(code string) (*dto.AuthResponse, error) {
 	token, err := config.GoogleOAuthConfig.Exchange(context.Background(), code)
 	if err != nil {
-		return nil, errors.NewUnauthorized("Failed to exchange Google OAuth code")
+		return nil, response.NewUnauthorized("Failed to exchange Google OAuth code")
 	}
 
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		return nil, errors.NewUnauthorized("ID token not found in Google OAuth response")
+		return nil, response.NewUnauthorized("ID token not found in Google OAuth response")
 	}
 
 	return s.GoogleSignIn(rawIDToken)

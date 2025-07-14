@@ -13,9 +13,9 @@ type User struct {
 	Avatar    string         `json:"avatar" gorm:"type:varchar(255)"`
 	Email     string         `json:"email" gorm:"type:varchar(100);unique;not null"`
 	Password  string         `json:"password" gorm:"type:varchar(100);not null"`
-	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	CreatedAt time.Time      `json:"createdAt" gorm:"autoCreateTime"`
+	UpdatedAt time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
 
 	Assets     []Asset    `json:"assets" gorm:"foreignKey:UserID"`
 	Categories []Category `json:"categories" gorm:"foreignKey:UserID"`
@@ -33,11 +33,11 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 type Location struct {
 	ID        uuid.UUID      `json:"id" gorm:"type:varchar(36);primaryKey"`
 	Name      string         `json:"name" gorm:"type:varchar(100);not null"`
-	UserID    *uuid.UUID     `json:"user_id" gorm:"type:varchar(36);index"`
-	IsDefault bool           `json:"is_default" gorm:"default:false"`
-	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	UserID    *uuid.UUID     `json:"userId" gorm:"type:varchar(36);index"`
+	IsDefault bool           `json:"isDefault" gorm:"default:false"`
+	CreatedAt time.Time      `json:"createdAt" gorm:"autoCreateTime"`
+	UpdatedAt time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
 
 	Assets []Asset `json:"assets" gorm:"foreignKey:LocationID"`
 	User   *User   `json:"user,omitempty" gorm:"foreignKey:UserID"`
@@ -52,13 +52,13 @@ func (l *Location) BeforeCreate(tx *gorm.DB) error {
 
 type Category struct {
 	ID        uuid.UUID      `json:"id" gorm:"type:varchar(36);primaryKey"`
-	ParentID  *uuid.UUID     `json:"parent_id" gorm:"type:varchar(36);index"`
+	ParentID  *uuid.UUID     `json:"parentId" gorm:"type:varchar(36);index"`
 	Name      string         `json:"name" gorm:"type:varchar(100);not null"`
-	UserID    *uuid.UUID     `json:"user_id" gorm:"type:varchar(36);index"`
-	IsDefault bool           `json:"is_default" gorm:"default:false"`
-	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	UserID    *uuid.UUID     `json:"userId" gorm:"type:varchar(36);index"`
+	IsDefault bool           `json:"isDefault" gorm:"default:false"`
+	CreatedAt time.Time      `json:"createdAt" gorm:"autoCreateTime"`
+	UpdatedAt time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
 
 	// Relationships
 	Assets   []Asset    `json:"assets" gorm:"foreignKey:CategoryID"`
@@ -95,18 +95,18 @@ type Asset struct {
 	ID           uuid.UUID      `json:"id" gorm:"type:varchar(36);primaryKey"`
 	Name         string         `json:"name" gorm:"type:varchar(100);not null"`
 	Description  string         `json:"description" gorm:"type:varchar(255)"`
-	LocationID   uuid.UUID      `json:"location_id" gorm:"type:varchar(36);not null"`
-	CategoryID   uuid.UUID      `json:"category_id" gorm:"type:varchar(36);not null"`
-	UserID       uuid.UUID      `json:"user_id" gorm:"type:varchar(36);not null"`
+	LocationID   uuid.UUID      `json:"locationId" gorm:"type:varchar(36);not null"`
+	CategoryID   uuid.UUID      `json:"categoryId" gorm:"type:varchar(36);not null"`
+	UserID       uuid.UUID      `json:"userId" gorm:"type:varchar(36);not null"`
 	Image        string         `json:"image" gorm:"type:varchar(255)"`
-	PurchaseDate *time.Time     `json:"purchase_date" gorm:"type:date"`
+	PurchaseDate *time.Time     `json:"purchaseDate" gorm:"type:date"`
 	Price        float64        `json:"price" gorm:"type:decimal(10,2);not null"`
 	Condition    string         `json:"condition" gorm:"type:varchar(50);not null"`
-	SerialNumber string         `json:"serial_number" gorm:"type:varchar(100)"`
+	SerialNumber string         `json:"serialNumber" gorm:"type:varchar(100)"`
 	Warranty     *time.Time     `json:"warranty" gorm:"type:date"`
-	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
-	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	CreatedAt    time.Time      `json:"createdAt" gorm:"autoCreateTime"`
+	UpdatedAt    time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
+	DeletedAt    gorm.DeletedAt `json:"deletedAt" gorm:"index"`
 
 	Location Location `json:"location" gorm:"foreignKey:LocationID"`
 	Category Category `json:"category" gorm:"foreignKey:CategoryID"`

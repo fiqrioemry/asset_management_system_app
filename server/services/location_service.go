@@ -7,20 +7,20 @@ import (
 	"time"
 
 	"github.com/fiqrioemry/asset_management_system_app/server/dto"
-	"github.com/fiqrioemry/asset_management_system_app/server/errors"
 	"github.com/fiqrioemry/asset_management_system_app/server/models"
 	"github.com/fiqrioemry/asset_management_system_app/server/repositories"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 	"github.com/google/uuid"
 )
 
 type LocationService interface {
-	GetLocations(userID string) (*dto.LocationsResponse, error)
-	CreateLocation(userID string, req *dto.CreateLocationRequest) (*dto.LocationResponse, error)
-	UpdateLocation(userID, locationID string, req *dto.UpdateLocationRequest) (*dto.LocationResponse, error)
 	DeleteLocation(userID, locationID string) error
+	GetLocations(userID string) (*dto.LocationsResponse, error)
 	GetLocationByID(userID, locationID string) (*dto.LocationResponse, error)
 	GetAssetsByLocation(userID, locationID string) (*dto.LocationWithAssetsResponse, error)
+	CreateLocation(userID string, req *dto.CreateLocationRequest) (*dto.LocationResponse, error)
+	UpdateLocation(userID, locationID string, req *dto.UpdateLocationRequest) (*dto.LocationResponse, error)
 }
 
 type locationService struct {
@@ -33,7 +33,6 @@ func NewLocationService(locationRepo repositories.LocationRepository) LocationSe
 	}
 }
 
-// GetLocations returns all locations available to user (system + user-specific) with caching
 func (s *locationService) GetLocations(userID string) (*dto.LocationsResponse, error) {
 	cacheKey := fmt.Sprintf("asset_app:cache:locations:all:%s", userID)
 
@@ -46,13 +45,13 @@ func (s *locationService) GetLocations(userID string) (*dto.LocationsResponse, e
 	// Cache miss - get from database
 	locations, err := s.locationRepo.GetAllUserLocations(userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get locations", err)
+		return nil, response.NewInternalServerError("Failed to get locations", err)
 	}
 
 	// Convert to response format
-	var locationResponses []dto.LocationResponse
+	var locationResp []dto.LocationResponse
 	for _, location := range locations {
-		locationResponses = append(locationResponses, dto.LocationResponse{
+		locationResp = append(locationResp, dto.LocationResponse{
 			ID:        location.ID.String(),
 			Name:      location.Name,
 			IsDefault: location.IsDefault,
@@ -63,8 +62,8 @@ func (s *locationService) GetLocations(userID string) (*dto.LocationsResponse, e
 	}
 
 	response := &dto.LocationsResponse{
-		Locations: locationResponses,
-		Total:     len(locationResponses),
+		Locations: locationResp,
+		Total:     len(locationResp),
 	}
 
 	// Cache for 15 minutes
@@ -77,22 +76,21 @@ func (s *locationService) GetLocations(userID string) (*dto.LocationsResponse, e
 func (s *locationService) CreateLocation(userID string, req *dto.CreateLocationRequest) (*dto.LocationResponse, error) {
 	// Normalize name
 	req.Name = strings.TrimSpace(req.Name)
-	req.Name = strings.Title(strings.ToLower(req.Name))
 
 	// Check if name already exists for this user
 	exists, err := s.locationRepo.CheckNameExists(req.Name, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to check location name", err)
+		return nil, response.NewInternalServerError("Failed to check location name", err)
 	}
 
 	if exists {
-		return nil, errors.NewConflict("Location name already exists")
+		return nil, response.NewConflict("Location name already exists")
 	}
 
 	// Parse userID to UUID
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
-		return nil, errors.NewBadRequest("Invalid user ID")
+		return nil, response.NewBadRequest("Invalid user ID")
 	}
 
 	// Create location
@@ -103,13 +101,13 @@ func (s *locationService) CreateLocation(userID string, req *dto.CreateLocationR
 	}
 
 	if err := s.locationRepo.Create(location); err != nil {
-		return nil, errors.NewInternalServerError("Failed to create location", err)
+		return nil, response.NewInternalServerError("Failed to create location", err)
 	}
 
 	// Invalidate cache
-	s.invalidateUserCache(userID)
+	go s.invalidateUserCache(userID)
 
-	response := &dto.LocationResponse{
+	resp := &dto.LocationResponse{
 		ID:        location.ID.String(),
 		Name:      location.Name,
 		IsDefault: location.IsDefault,
@@ -118,7 +116,7 @@ func (s *locationService) CreateLocation(userID string, req *dto.CreateLocationR
 		UpdatedAt: location.UpdatedAt,
 	}
 
-	return response, nil
+	return resp, nil
 }
 
 // UpdateLocation updates user's own location only
@@ -126,26 +124,25 @@ func (s *locationService) UpdateLocation(userID, locationID string, req *dto.Upd
 	// Get location and check ownership (only user's own locations can be updated)
 	location, err := s.locationRepo.GetByIDAndUserID(locationID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get location", err)
+		return nil, response.NewInternalServerError("Failed to get location", err)
 	}
 
 	if location == nil {
-		return nil, errors.NewNotFound("Location not found or you don't have permission to update it")
+		return nil, response.NewNotFound("Location not found or you don't have permission to update it")
 	}
 
 	// Normalize name
 	req.Name = strings.TrimSpace(req.Name)
-	req.Name = strings.Title(strings.ToLower(req.Name))
 
-	// Check if new name already exists (excluding current location)
+	// Check if new name already exists
 	if !strings.EqualFold(req.Name, location.Name) {
 		exists, err := s.locationRepo.CheckNameExists(req.Name, userID)
 		if err != nil {
-			return nil, errors.NewInternalServerError("Failed to check location name", err)
+			return nil, response.NewInternalServerError("Failed to check location name", err)
 		}
 
 		if exists {
-			return nil, errors.NewConflict("Location name already exists")
+			return nil, response.NewConflict("Location name already exists")
 		}
 	}
 
@@ -153,7 +150,7 @@ func (s *locationService) UpdateLocation(userID, locationID string, req *dto.Upd
 	location.Name = req.Name
 
 	if err := s.locationRepo.Update(location); err != nil {
-		return nil, errors.NewInternalServerError("Failed to update location", err)
+		return nil, response.NewInternalServerError("Failed to update location", err)
 	}
 
 	// Invalidate cache
@@ -171,36 +168,35 @@ func (s *locationService) UpdateLocation(userID, locationID string, req *dto.Upd
 	return response, nil
 }
 
-// DeleteLocation deletes user's own location only (not system default locations)
 func (s *locationService) DeleteLocation(userID, locationID string) error {
-	// Get location and check ownership (only user's own locations)
+	// Get location and check ownership
 	location, err := s.locationRepo.GetByIDAndUserID(locationID, userID)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to get location", err)
+		return response.NewInternalServerError("Failed to get location", err)
 	}
 
 	if location == nil {
-		return errors.NewNotFound("Location not found or you don't have permission to delete it")
+		return response.NewNotFound("Location not found or you don't have permission to delete it")
 	}
 
 	// Additional check: cannot delete system default locations
 	if location.IsDefault {
-		return errors.NewForbidden("Cannot delete system default location")
+		return response.NewForbidden("Cannot delete system default location")
 	}
 
 	// Check if location is being used by assets
 	assetCount, err := s.locationRepo.CountAssetsByLocation(locationID, userID)
 	if err != nil {
-		return errors.NewInternalServerError("Failed to check location usage", err)
+		return response.NewInternalServerError("Failed to check location usage", err)
 	}
 
 	if assetCount > 0 {
-		return errors.NewConflict("Cannot delete location that is being used by assets")
+		return response.NewConflict("Cannot delete location that is being used by assets")
 	}
 
 	// Delete location
 	if err := s.locationRepo.Delete(location); err != nil {
-		return errors.NewInternalServerError("Failed to delete location", err)
+		return response.NewInternalServerError("Failed to delete location", err)
 	}
 
 	// Invalidate cache
@@ -209,24 +205,23 @@ func (s *locationService) DeleteLocation(userID, locationID string) error {
 	return nil
 }
 
-// GetLocationByID gets specific location that user can access
 func (s *locationService) GetLocationByID(userID, locationID string) (*dto.LocationResponse, error) {
 	// Get location
 	location, err := s.locationRepo.GetByID(locationID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get location", err)
+		return nil, response.NewInternalServerError("Failed to get location", err)
 	}
 
 	if location == nil {
-		return nil, errors.NewNotFound("Location not found")
+		return nil, response.NewNotFound("Location not found")
 	}
 
-	// Check if user can access this location (system location or user's own location)
+	// Check if user can access this location
 	if location.UserID != nil && location.UserID.String() != userID {
-		return nil, errors.NewNotFound("Location not found")
+		return nil, response.NewNotFound("Location not found")
 	}
 
-	response := &dto.LocationResponse{
+	resp := &dto.LocationResponse{
 		ID:        location.ID.String(),
 		Name:      location.Name,
 		IsDefault: location.IsDefault,
@@ -235,10 +230,9 @@ func (s *locationService) GetLocationByID(userID, locationID string) (*dto.Locat
 		UpdatedAt: location.UpdatedAt,
 	}
 
-	return response, nil
+	return resp, nil
 }
 
-// GetAssetsByLocation gets all assets in a specific location for the user
 func (s *locationService) GetAssetsByLocation(userID, locationID string) (*dto.LocationWithAssetsResponse, error) {
 	// Get location first
 	locationResponse, err := s.GetLocationByID(userID, locationID)
@@ -249,7 +243,7 @@ func (s *locationService) GetAssetsByLocation(userID, locationID string) (*dto.L
 	// Get assets for this location
 	assets, err := s.locationRepo.GetAssetsByLocation(locationID, userID)
 	if err != nil {
-		return nil, errors.NewInternalServerError("Failed to get assets", err)
+		return nil, response.NewInternalServerError("Failed to get assets", err)
 	}
 
 	// Convert assets to response format

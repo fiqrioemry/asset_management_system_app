@@ -8,9 +8,9 @@ import (
 	"github.com/fiqrioemry/asset_management_system_app/server/middlewares"
 	"github.com/fiqrioemry/asset_management_system_app/server/repositories"
 	"github.com/fiqrioemry/asset_management_system_app/server/routes"
-	"github.com/fiqrioemry/asset_management_system_app/server/seeders"
 	"github.com/fiqrioemry/asset_management_system_app/server/services"
 	"github.com/fiqrioemry/asset_management_system_app/server/utils"
+	"github.com/fiqrioemry/go-api-toolkit/response"
 
 	"time"
 
@@ -30,18 +30,27 @@ func main() {
 	utils.InitLogger()
 	db := config.DB
 
-	seeders.ResetDatabase(db)
+	// seeders.ResetDatabase(db)
 
-	// ========== initialisasi layer ============
+	// ========== Initialize response toolkit ===
+	// This initializes the response toolkit with custom configurations
+	// such as logging success and error responses.
+	response.InitGin(response.InitConfig{
+		Logger:              utils.GetLogger(),
+		LogSuccessResponses: false,
+		LogErrorResponses:   true,
+	})
+
+	// ========== Initialize layer ============
 	repo := repositories.InitRepositories(db)
 	s := services.InitServices(repo)
 	h := handlers.InitHandlers(s)
 
-	// ========== Inisialisasi gin engine =======
+	// ========== Initialize gin engine =======
 	r := gin.Default()
 	r.SetTrustedProxies(config.AppConfig.TrustedProxies)
 
-	// ========== inisialisasi Middleware ========
+	// ========== Initialize Middleware ========
 	r.Use(
 		ginzap.Ginzap(utils.GetLogger(), time.RFC3339, true),
 		middlewares.Recovery(),
@@ -51,7 +60,7 @@ func main() {
 		middlewares.APIKeyGateway(config.AppConfig.SkippedApiEndpoints),
 	)
 
-	// ========== inisialisasi routes ===========
+	// ========== Initialize routes ===========
 	routes.InitRoutes(r, h)
 
 	port := config.AppConfig.ServerPort

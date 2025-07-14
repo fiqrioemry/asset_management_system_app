@@ -1,0 +1,35 @@
+# fitness application
+services:
+  server:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: asset_management_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports: # delete for production  | use only for development
+      - "5005:5005"
+    expose:
+      - "5005"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -q --spider http://localhost:5005/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    volumes: # delete on production | use only for development
+      - .:/app
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.ecommerce.rule=Host(`assetku.ahmadfiqrioemry.com`)"
+    #   - "traefik.http.services.ecommerce.loadbalancer.server.port=5005"
+    #   - "traefik.http.routers.ecommerce.entrypoints=websecure"
+    #   - "traefik.http.routers.ecommerce.tls.certresolver=letsencrypt"
+    networks:
+      - shared-net
+
+networks:
+  shared-net:
+    external: true

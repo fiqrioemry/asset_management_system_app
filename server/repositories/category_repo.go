@@ -122,7 +122,7 @@ func (r *categoryRepository) GetAssetsByCategory(categoryID, userID string) ([]m
 func (r *categoryRepository) CountAssetsByCategory(categoryID, userID string) (int64, error) {
 	var count int64
 	err := r.db.Model(&models.Asset{}).
-		Where("category_id = ? AND user_id = ?", categoryID, userID).
+		Where("category_id= ? AND user_id= ?", categoryID, userID).
 		Count(&count).Error
 	return count, err
 }
