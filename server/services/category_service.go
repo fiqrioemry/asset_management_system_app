@@ -14,15 +14,15 @@ import (
 )
 
 type CategoryService interface {
+	DeleteCategory(userID, categoryID string) error
 	GetCategoriesTree(userID string) (*dto.CategoriesTreeResponse, error)
 	GetCategoriesFlat(userID string) (*dto.CategoriesFlatResponse, error)
 	GetParentCategories(userID string) (*dto.CategoriesTreeResponse, error)
+	GetCategoryByID(userID, categoryID string) (*dto.CategoryResponse, error)
 	GetChildCategories(parentID, userID string) (*dto.CategoriesTreeResponse, error)
+	GetAssetsByCategory(userID, categoryID string) (*dto.CategoryWithAssetsResponse, error)
 	CreateCategory(userID string, req *dto.CreateCategoryRequest) (*dto.CategoryResponse, error)
 	UpdateCategory(userID, categoryID string, req *dto.UpdateCategoryRequest) (*dto.CategoryResponse, error)
-	DeleteCategory(userID, categoryID string) error
-	GetCategoryByID(userID, categoryID string) (*dto.CategoryResponse, error)
-	GetAssetsByCategory(userID, categoryID string) (*dto.CategoryWithAssetsResponse, error)
 }
 
 type categoryService struct {
@@ -35,7 +35,6 @@ func NewCategoryService(categoryRepo repositories.CategoryRepository) CategorySe
 	}
 }
 
-// retrieves the category tree structure for a user
 func (s *categoryService) GetCategoriesTree(userID string) (*dto.CategoriesTreeResponse, error) {
 	cacheKey := fmt.Sprintf("asset_app:cache:categories:tree:%s", userID)
 
@@ -83,7 +82,6 @@ func (s *categoryService) GetCategoriesTree(userID string) (*dto.CategoriesTreeR
 	return response, nil
 }
 
-// GetCategoriesFlat returns flat list with full path names
 func (s *categoryService) GetCategoriesFlat(userID string) (*dto.CategoriesFlatResponse, error) {
 	cacheKey := fmt.Sprintf("asset_app:cache:categories:flat:%s", userID)
 
@@ -176,7 +174,6 @@ func (s *categoryService) GetChildCategories(parentID, userID string) (*dto.Cate
 func (s *categoryService) CreateCategory(userID string, req *dto.CreateCategoryRequest) (*dto.CategoryResponse, error) {
 	// Normalize name
 	req.Name = strings.TrimSpace(req.Name)
-	req.Name = strings.Title(strings.ToLower(req.Name))
 
 	// Validate parent if provided
 	var parentUUID *uuid.UUID
@@ -225,7 +222,7 @@ func (s *categoryService) CreateCategory(userID string, req *dto.CreateCategoryR
 	}
 
 	// Invalidate cache
-	s.invalidateUserCache(userID)
+	go s.invalidateUserCache(userID)
 
 	level := 0
 	if category.ParentID != nil {
@@ -298,7 +295,7 @@ func (s *categoryService) UpdateCategory(userID, categoryID string, req *dto.Upd
 	}
 
 	// Invalidate cache
-	s.invalidateUserCache(userID)
+	go s.invalidateUserCache(userID)
 
 	level := 0
 	if category.ParentID != nil {
@@ -348,7 +345,7 @@ func (s *categoryService) DeleteCategory(userID, categoryID string) error {
 	}
 
 	// Invalidate cache
-	s.invalidateUserCache(userID)
+	go s.invalidateUserCache(userID)
 
 	return nil
 }
@@ -377,7 +374,6 @@ func (s *categoryService) GetCategoryByID(userID, categoryID string) (*dto.Categ
 	return &resp, nil
 }
 
-// GetAssetsByCategory gets all assets in specific category
 func (s *categoryService) GetAssetsByCategory(userID, categoryID string) (*dto.CategoryWithAssetsResponse, error) {
 	// Get category first
 	categoryResponse, err := s.GetCategoryByID(userID, categoryID)
@@ -453,5 +449,5 @@ func (s *categoryService) invalidateUserCache(userID string) {
 		fmt.Sprintf("asset_app:cache:categories:tree:%s", userID),
 		fmt.Sprintf("asset_app:cache:categories:flat:%s", userID),
 	}
-	go utils.DeleteKeys(cacheKeys...)
+	utils.DeleteKeys(cacheKeys...)
 }
